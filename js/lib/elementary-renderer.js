@@ -212,6 +212,11 @@ export class WebRenderer {
      * Check if we need to schedule steps.
      */
     schedulerTick() {
+        // Prevent catch-up burst if context was suspended or thread lagged
+        if (this.nextStepTime < this.ctx.currentTime) {
+            this.nextStepTime = this.ctx.currentTime + 0.05;
+        }
+
         while (this.nextStepTime < this.ctx.currentTime + this.scheduleAheadTime) {
             this.scheduleStep(this.currentStep, this.nextStepTime);
             
@@ -332,8 +337,19 @@ export class WebRenderer {
         gain.connect(this.delayNode);
 
         // Apply ADSR Envelope
-        const [a, d, s, r] = this.adsr;
+        let a = this.adsr[0];
+        let d = this.adsr[1];
+        const s = this.adsr[2];
+        const r = this.adsr[3];
         const gateDuration = duration * 0.8; // let notes release cleanly
+
+        // Adjust attack and decay if they exceed gate duration to prevent Web Audio overlapping errors
+        const totalEnvelopeTime = a + d;
+        if (gateDuration < totalEnvelopeTime) {
+            const scale = gateDuration / totalEnvelopeTime;
+            a *= scale;
+            d *= scale;
+        }
 
         gain.gain.setValueAtTime(0, time);
         // Attack
