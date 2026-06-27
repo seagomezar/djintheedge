@@ -1,0 +1,26 @@
+{
+  "name": "browserdj-ai",
+  "version": "1.0.0",
+  "description": "On-Device AI DJ Deck and Composer",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "dj",
+    "webgpu",
+    "audio",
+    "procedural",
+    "synthesizer",
+    "litert-lm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
