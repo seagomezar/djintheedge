@@ -191,7 +191,7 @@ function loadDefaultGroove() {
                 filter_cutoff_hz: 2000,
                 filter_resonance: 2.5,
                 adsr: [0.01, 0.15, 0.7, 0.2],
-                notes_sequence: [57, 60, 64, 67, 64, 60, 57, 0]
+                notes_sequence: [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]
             },
             effects: {
                 delay_feedback: 0.3,

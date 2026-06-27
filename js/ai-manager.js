@@ -103,7 +103,7 @@ export function parsePromptToDSP(prompt) {
 
     // --- 2. Scale & Notes Sequence Parsing ---
     let scale = "Am";
-    let notes = [57, 60, 64, 67, 64, 60, 57, 0]; // Default: A minor arpeggio
+    let notes = [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]; // Default: A minor arpeggio (16 steps)
     
     // Check scale
     const scaleMatches = text.match(/\b([a-g])\s*(minor|major|m|min|maj)?\b/);
@@ -116,17 +116,17 @@ export function parsePromptToDSP(prompt) {
 
     // Select note patterns based on style
     if (text.includes("synthwave") || text.includes("cyberpunk") || text.includes("retro")) {
-        // Classic driving bassline / sequence
-        notes = [57, 57, 60, 57, 64, 57, 67, 57];
+        // Classic driving bassline / sequence (16 steps)
+        notes = [57, 57, 60, 57, 64, 57, 67, 57, 57, 57, 60, 57, 64, 57, 67, 55];
     } else if (text.includes("house") || text.includes("disco") || text.includes("groove")) {
-        // Offbeat groove
-        notes = [57, 60, 0, 57, 60, 62, 57, 0];
+        // Offbeat groove (16 steps)
+        notes = [57, 60, 0, 57, 60, 62, 57, 0, 57, 60, 0, 57, 60, 62, 55, 0];
     } else if (text.includes("ambient") || text.includes("chill") || text.includes("smooth")) {
-        // Wide chord arpeggio
-        notes = [60, 64, 67, 72, 67, 64, 60, 0];
+        // Wide chord arpeggio (16 steps)
+        notes = [60, 64, 67, 72, 67, 64, 60, 0, 60, 64, 67, 72, 67, 64, 59, 0];
     } else if (text.includes("techno") || text.includes("dark")) {
-        // Hypnotic techno melody
-        notes = [57, 57, 57, 60, 62, 60, 57, 0];
+        // Hypnotic techno melody (16 steps)
+        notes = [57, 57, 57, 60, 62, 60, 57, 0, 57, 57, 57, 60, 62, 60, 55, 0];
     }
 
     // --- 3. Lead Synthesizer Parameters ---

@@ -229,14 +229,12 @@ export class WebRenderer {
         }
     }
 
-    /**
-     * Schedule all instruments playing on the current step.
-     */
     scheduleStep(step, time) {
         const stepDuration = 60.0 / this.bpm / 4.0;
 
         // 1. Kick Drum
-        if (this.kickPattern[step] === 1) {
+        const kickActive = this.kickPattern.length > 0 ? this.kickPattern[step % this.kickPattern.length] : 0;
+        if (kickActive === 1) {
             if (this.useCustomSample && this.samples[this.sampleName]) {
                 this.playSample(this.sampleName, time);
             } else {
@@ -245,14 +243,17 @@ export class WebRenderer {
         }
 
         // 2. Hi-hat
-        if (this.hihatPattern[step] === 1) {
+        const hihatActive = this.hihatPattern.length > 0 ? this.hihatPattern[step % this.hihatPattern.length] : 0;
+        if (hihatActive === 1) {
             this.playSyntheticHihat(time);
         }
 
         // 3. Synthesizer Lead
-        const midiNote = this.synthSequence[step];
-        if (midiNote > 0) {
-            this.playSynthNote(midiNote, time, stepDuration);
+        if (this.synthSequence.length > 0) {
+            const midiNote = this.synthSequence[step % this.synthSequence.length];
+            if (midiNote > 0) {
+                this.playSynthNote(midiNote, time, stepDuration);
+            }
         }
     }
 
