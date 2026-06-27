@@ -84,58 +84,74 @@ export class AIManager {
  * Parses natural language descriptions into valid DSP JSON contracts.
  * Supports English and Spanish terms for BPM, scale, lead waveforms, filters, delay, and patterns.
  */
-export function parsePromptToDSP(prompt) {
+export function parsePromptToDSP(prompt, currentState = null) {
     const text = prompt.toLowerCase();
 
+    // 1. Initialize variables from the current state (if present) or sensible defaults
+    let bpm = currentState ? currentState.meta.bpm : 120;
+    let scale = currentState ? currentState.meta.scale : "Am";
+    let notes = currentState ? [...currentState.dsp_graph.synth_lead.notes_sequence] : [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0];
+    let wave_type = currentState ? currentState.dsp_graph.synth_lead.wave_type : "saw";
+    let filter_cutoff_hz = currentState ? currentState.dsp_graph.synth_lead.filter_cutoff_hz : 1500;
+    let filter_resonance = currentState ? currentState.dsp_graph.synth_lead.filter_resonance : 2.0;
+    let adsr = currentState ? [...currentState.dsp_graph.synth_lead.adsr] : [0.01, 0.15, 0.7, 0.2];
+    
+    let use_custom_sample = currentState ? currentState.dsp_graph.drums.use_custom_sample : false;
+    let sample_name = currentState ? currentState.dsp_graph.drums.sample_name : "";
+    let kick_pattern = currentState ? [...currentState.dsp_graph.drums.kick_pattern] : [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
+    let hihat_pattern = currentState ? [...currentState.dsp_graph.drums.hihat_pattern] : [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0];
+    
+    let delay_feedback = currentState ? currentState.dsp_graph.effects.delay_feedback : 0.3;
+    let reverb_mix = currentState ? currentState.dsp_graph.effects.reverb_mix : 0.15;
+
     // --- 1. BPM / Tempo Parsing ---
-    let bpm = 120;
     const bpmMatch = text.match(/(\d+)\s*bpm/);
     if (bpmMatch) {
         bpm = parseInt(bpmMatch[1]);
     } else {
-        if (text.includes("fast") || text.includes("rápido") || text.includes("rapido") || text.includes("acelera") || text.includes("techno")) {
+        if (text.includes("fast") || text.includes("rápido") || text.includes("rapido") || text.includes("acelera")) {
             bpm = 132;
-        } else if (text.includes("slow") || text.includes("lento") || text.includes("chill") || text.includes("downbeat") || text.includes("relax")) {
+        } else if (text.includes("slow") || text.includes("lento") || text.includes("chill") || text.includes("relax")) {
             bpm = 90;
         }
     }
-    bpm = Math.max(60, Math.min(220, bpm)); // Clamp to sensible musical range
+    bpm = Math.max(60, Math.min(220, bpm));
 
     // --- 2. Scale & Notes Sequence Parsing ---
-    let scale = "Am";
-    let notes = [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]; // Default: A minor arpeggio (16 steps)
-    
-    // Check scale
     const scaleMatches = text.match(/\b([a-g])\s*(minor|major|m|min|maj)?\b/);
+    let scaleChanged = false;
     if (scaleMatches) {
         const root = scaleMatches[1].toUpperCase();
         const mode = scaleMatches[2] || '';
         const isMinor = mode.includes("m") || mode.includes("min") || text.includes("menor") || text.includes("minor");
         scale = root + (isMinor ? "m" : "");
+        scaleChanged = true;
     }
 
-    // Select note patterns based on style
-    if (text.includes("synthwave") || text.includes("cyberpunk") || text.includes("retro")) {
-        // Classic driving bassline / sequence (16 steps)
-        notes = [57, 57, 60, 57, 64, 57, 67, 57, 57, 57, 60, 57, 64, 57, 67, 55];
-    } else if (text.includes("house") || text.includes("disco") || text.includes("groove")) {
-        // Offbeat groove (16 steps)
-        notes = [57, 60, 0, 57, 60, 62, 57, 0, 57, 60, 0, 57, 60, 62, 55, 0];
-    } else if (text.includes("ambient") || text.includes("chill") || text.includes("smooth")) {
-        // Wide chord arpeggio (16 steps)
-        notes = [60, 64, 67, 72, 67, 64, 60, 0, 60, 64, 67, 72, 67, 64, 59, 0];
-    } else if (text.includes("techno") || text.includes("dark")) {
-        // Hypnotic techno melody (16 steps)
-        notes = [57, 57, 57, 60, 62, 60, 57, 0, 57, 57, 57, 60, 62, 60, 55, 0];
+    if (scaleChanged) {
+        notes = generateScaleMelody(scale.replace("m", ""), scale.endsWith("m"));
+    } else {
+        // Only update melody style if explicitly requested
+        if (text.includes("synthwave") || text.includes("cyberpunk") || text.includes("retro")) {
+            notes = [57, 57, 60, 57, 64, 57, 67, 57, 57, 57, 60, 57, 64, 57, 67, 55];
+        } else if (text.includes("house") || text.includes("disco") || text.includes("groove")) {
+            notes = [57, 60, 0, 57, 60, 62, 57, 0, 57, 60, 0, 57, 60, 62, 55, 0];
+        } else if (text.includes("ambient") || text.includes("chill") || text.includes("smooth")) {
+            notes = [60, 64, 67, 72, 67, 64, 60, 0, 60, 64, 67, 72, 67, 64, 59, 0];
+        } else if (text.includes("techno") || text.includes("dark")) {
+            notes = [57, 57, 57, 60, 62, 60, 57, 0, 57, 57, 57, 60, 62, 60, 55, 0];
+        }
     }
 
     // --- 3. Lead Synthesizer Parameters ---
-    let wave_type = "saw";
     if (text.includes("sine") || text.includes("cycle") || text.includes("senoidal") || text.includes("soft") || text.includes("smooth")) {
         wave_type = "cycle";
+    } else if (text.includes("saw") || text.includes("diente de sierra") || text.includes("bright") || text.includes("techno")) {
+        wave_type = "saw";
+    } else if (text.includes("square") || text.includes("cuadrada") || text.includes("retro")) {
+        wave_type = "square";
     }
 
-    let filter_cutoff_hz = 1500;
     const hzMatch = text.match(/(\d+)\s*hz/);
     if (hzMatch) {
         filter_cutoff_hz = parseInt(hzMatch[1]);
@@ -148,7 +164,6 @@ export function parsePromptToDSP(prompt) {
     }
     filter_cutoff_hz = Math.max(100, Math.min(10000, filter_cutoff_hz));
 
-    let filter_resonance = 2.0;
     if (text.includes("res") || text.includes("resonancia")) {
         if (text.includes("mucho") || text.includes("alta") || text.includes("high")) {
             filter_resonance = 4.5;
@@ -157,7 +172,6 @@ export function parsePromptToDSP(prompt) {
         }
     }
 
-    let adsr = [0.01, 0.15, 0.7, 0.2];
     if (text.includes("plucky") || text.includes("pluck") || text.includes("corto")) {
         adsr = [0.002, 0.08, 0.1, 0.05];
     } else if (text.includes("pad") || text.includes("largo") || text.includes("slow attack")) {
@@ -165,29 +179,32 @@ export function parsePromptToDSP(prompt) {
     }
 
     // --- 4. Drums Sequencing ---
-    let use_custom_sample = false;
-    let sample_name = "";
-
-    // Kick drum pattern
-    let kick_pattern = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]; // 4-on-the-floor default
-    if (text.includes("break") || text.includes("breakbeat") || text.includes("hiphop") || text.includes("hip hop")) {
-        kick_pattern = [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0];
-    } else if (text.includes("ambient") || text.includes("no kick") || text.includes("sin bombo") || text.includes("relax")) {
+    const hasPercussionMentions = text.includes("percusion") || text.includes("percussion") || text.includes("drums") || text.includes("drum") || text.includes("bateria") || text.includes("bombo") || text.includes("hats") || text.includes("ritmo");
+    const isNegatedPercussion = text.includes("no percusion") || text.includes("no percussion") || text.includes("sin percusion") || text.includes("sin percussion") || text.includes("no drum") || text.includes("sin bateria") || text.includes("quitar bateria");
+    
+    if (isNegatedPercussion) {
         kick_pattern = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    } else if (text.includes("double kick") || text.includes("fast kick") || text.includes("hardcore")) {
-        kick_pattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
-    }
-
-    // Hihat pattern
-    let hihat_pattern = [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]; // Offbeats default
-    if (text.includes("fast hats") || text.includes("hats rapidas") || text.includes("hihats rapidas") || text.includes("techno hats")) {
-        hihat_pattern = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
-    } else if (text.includes("no hats") || text.includes("sin hats") || text.includes("ambient")) {
         hihat_pattern = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    } else if (hasPercussionMentions) {
+        if (text.includes("fast hats") || text.includes("hats rapidas") || text.includes("hihats rapidas") || text.includes("techno hats")) {
+            hihat_pattern = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
+        } else if (text.includes("no hats") || text.includes("sin hats") || text.includes("sin platillos")) {
+            hihat_pattern = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        } else {
+            hihat_pattern = [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0];
+        }
+
+        if (text.includes("break") || text.includes("breakbeat") || text.includes("hiphop") || text.includes("hip hop")) {
+            kick_pattern = [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+        } else if (text.includes("double kick") || text.includes("fast kick") || text.includes("hardcore")) {
+            kick_pattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
+        } else if (text.includes("no kick") || text.includes("sin bombo")) {
+            kick_pattern = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        } else {
+            kick_pattern = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
+        }
     }
 
-    // Check custom sample trigger
-    // E.g., user writes: "usa el sample bombo_808"
     const sampleWords = text.match(/(?:sample|muestra|usar)\s+([a-z0-9_-]+)/);
     if (sampleWords) {
         use_custom_sample = true;
@@ -195,27 +212,24 @@ export function parsePromptToDSP(prompt) {
     }
 
     // --- 5. Effects (Delay & Reverb) ---
-    let delay_feedback = 0.3;
     if (text.includes("delay") || text.includes("eco")) {
         if (text.includes("mucho") || text.includes("heavy") || text.includes("space") || text.includes("bastante")) {
-            delay_feedback = 0.55;
-        } else if (text.includes("poco") || text.includes("light")) {
-            delay_feedback = 0.15;
+            delay_feedback = 0.65;
+        } else if (text.includes("poco") || text.includes("bajo") || text.includes("light")) {
+            delay_feedback = 0.1;
+        } else if (text.includes("no delay") || text.includes("sin delay") || text.includes("sin eco")) {
+            delay_feedback = 0.0;
         } else {
-            const decimalMatch = text.match(/delay\s+(0\.\d+)/);
-            if (decimalMatch) {
-                delay_feedback = parseFloat(decimalMatch[1]);
-            }
+            delay_feedback = 0.45;
         }
     }
-    delay_feedback = Math.max(0, Math.min(0.9, delay_feedback));
-
-    let reverb_mix = 0.15;
-    if (text.includes("reverb") || text.includes("espacio")) {
-        if (text.includes("mucho") || text.includes("grande")) {
+    if (text.includes("reverb") || text.includes("espacio") || text.includes("catedral")) {
+        if (text.includes("mucha") || text.includes("alta") || text.includes("cathedral")) {
             reverb_mix = 0.45;
-        } else if (text.includes("seco") || text.includes("dry")) {
-            reverb_mix = 0.02;
+        } else if (text.includes("no reverb") || text.includes("sin reverb")) {
+            reverb_mix = 0.0;
+        } else {
+            reverb_mix = 0.25;
         }
     }
 
@@ -253,4 +267,22 @@ export function parsePromptToDSP(prompt) {
             }
         }
     };
+}
+
+/**
+ * Generates a 16-note arpeggiating lead sequence transposed to the root name and scale mode.
+ */
+function generateScaleMelody(rootName, isMinor) {
+    const roots = { 'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 57, 'B': 59 };
+    let rootMidi = roots[rootName] || 60;
+    const intervals = isMinor ? [0, 2, 3, 5, 7, 8, 10, 12] : [0, 2, 4, 5, 7, 9, 11, 12];
+    
+    // Construct a beautiful 16-step arpeggiating pattern in the chosen scale
+    const pattern = [0, 2, 4, 7, 4, 2, 0, 7, 0, 2, 4, 7, 4, 2, -1, -2];
+    return pattern.map(idx => {
+        if (idx === -1) return rootMidi - 12; // Octave below
+        if (idx === -2) return rootMidi - 5; // Fifth below
+        const interval = intervals[idx % intervals.length];
+        return rootMidi + interval;
+    });
 }

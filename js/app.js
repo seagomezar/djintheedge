@@ -14,6 +14,38 @@ const audio = new AudioEngine();
 
 let isRecording = false;
 
+// Current stateful loop configuration to accumulate user modifications
+let activeLoopState = {
+    meta: { bpm: 120, scale: "Am", energy: 0.6 },
+    dsp_graph: {
+        drums: {
+            use_custom_sample: false,
+            sample_name: "",
+            kick_pattern: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
+            hihat_pattern: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1]
+        },
+        synth_lead: {
+            wave_type: "saw",
+            filter_cutoff_hz: 2000,
+            filter_resonance: 2.5,
+            adsr: [0.01, 0.15, 0.7, 0.2],
+            notes_sequence: [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]
+        },
+        effects: {
+            delay_feedback: 0.3,
+            reverb_mix: 0.15
+        }
+    }
+};
+
+// Monitor DOM Elements
+const stateScale = document.getElementById('state-scale');
+const stateBpm = document.getElementById('state-bpm');
+const stateSynth = document.getElementById('state-synth');
+const stateDrums = document.getElementById('state-drums');
+const stateEffects = document.getElementById('state-effects');
+const promptHistory = document.getElementById('prompt-history');
+
 // DOM Elements
 const statusGpu = document.getElementById('status-gpu');
 const statusAudio = document.getElementById('status-audio');
@@ -162,20 +194,31 @@ async function handlePromptSubmission() {
     btnSend.innerText = "Traduciendo...";
 
     try {
-        const dspConfig = await ai.generateDSPConfig(text);
+        const dspConfig = await ai.generateDSPConfig(text, activeLoopState);
         if (dspConfig) {
+            // Update active stateful loop configuration (accumulate layers)
+            activeLoopState = dspConfig;
+
             // Update audio engine graph parameters
-            audio.renderGraph(dspConfig);
+            audio.renderGraph(activeLoopState);
             
             // Sync slider and value readouts to whatever cutoff the AI parsed
-            const parsedCutoff = dspConfig.dsp_graph.synth_lead.filter_cutoff_hz;
+            const parsedCutoff = activeLoopState.dsp_graph.synth_lead.filter_cutoff_hz;
             sliderCutoff.value = parsedCutoff;
             audio.manualCutoff = parsedCutoff;
             valCutoff.innerText = `${parsedCutoff} Hz`;
+
+            // Update DOM state monitor panel
+            updateStateMonitor(activeLoopState);
+
+            // Log prompt history item
+            const summary = generateChangeSummary(text, activeLoopState);
+            addPromptToHistory(text, summary);
         }
     } catch (err) {
         console.error("Error executing prompt:", err);
     } finally {
+        promptInput.value = "";
         btnSend.disabled = false;
         promptInput.disabled = false;
         btnSend.innerText = "Enviar Comando";
@@ -186,29 +229,108 @@ async function handlePromptSubmission() {
  * Launches a default beat on startup so the app is instantly playing.
  */
 function loadDefaultGroove() {
-    const defaultJson = {
-        meta: { bpm: 120, scale: "Am", energy: 0.6 },
-        dsp_graph: {
-            drums: {
-                use_custom_sample: false,
-                sample_name: "",
-                kick_pattern: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
-                hihat_pattern: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1]
-            },
-            synth_lead: {
-                wave_type: "saw",
-                filter_cutoff_hz: 2000,
-                filter_resonance: 2.5,
-                adsr: [0.01, 0.15, 0.7, 0.2],
-                notes_sequence: [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]
-            },
-            effects: {
-                delay_feedback: 0.3,
-                reverb_mix: 0.1
-            }
+    audio.renderGraph(activeLoopState);
+    updateStateMonitor(activeLoopState);
+}
+
+/**
+ * Updates the screen panel displaying current active loop settings.
+ */
+function updateStateMonitor(state) {
+    if (!state) return;
+    
+    // Scale root / Key
+    if (stateScale) {
+        const isMinor = state.meta.scale.endsWith('m');
+        stateScale.innerText = isMinor ? `${state.meta.scale.replace('m', '')} menor` : `${state.meta.scale} mayor`;
+    }
+    
+    // Tempo
+    if (stateBpm) {
+        stateBpm.innerText = `${state.meta.bpm} BPM`;
+    }
+    
+    // Synth lead settings
+    if (stateSynth) {
+        const waveName = state.dsp_graph.synth_lead.wave_type === 'cycle' ? 'Sine' : 
+                         state.dsp_graph.synth_lead.wave_type === 'square' ? 'Cuadrada' : 'Sierra';
+        stateSynth.innerText = `${waveName} (${state.dsp_graph.synth_lead.filter_cutoff_hz}Hz)`;
+    }
+    
+    // Drum active layers check
+    if (stateDrums) {
+        const hasKick = state.dsp_graph.drums.kick_pattern.some(v => v === 1);
+        const hasHats = state.dsp_graph.drums.hihat_pattern.some(v => v === 1);
+        if (hasKick && hasHats) {
+            stateDrums.innerText = "Bombo + Platillo";
+        } else if (hasKick) {
+            stateDrums.innerText = "Solo Bombo";
+        } else if (hasHats) {
+            stateDrums.innerText = "Solo Platillo";
+        } else {
+            stateDrums.innerText = "Sin Percusión";
         }
-    };
-    audio.renderGraph(defaultJson);
+    }
+    
+    // Effects dry/wet levels
+    if (stateEffects) {
+        const delayPercent = Math.round(state.dsp_graph.effects.delay_feedback * 100);
+        const reverbPercent = Math.round(state.dsp_graph.effects.reverb_mix * 100);
+        stateEffects.innerText = `eco ${delayPercent}% / rev ${reverbPercent}%`;
+    }
+}
+
+/**
+ * Generates a brief summary list of which components were affected by the user command.
+ */
+function generateChangeSummary(text, state) {
+    const changes = [];
+    const lower = text.toLowerCase();
+    
+    if (lower.match(/\b[a-g]\s*(minor|major|m|min|maj|menor|mayor)?\b/)) {
+        changes.push(`Tono: ${state.meta.scale}`);
+    }
+    if (lower.includes("percusion") || lower.includes("percussion") || lower.includes("drum") || lower.includes("bateria") || lower.includes("bombo") || lower.includes("hats") || lower.includes("ritmo")) {
+        const hasKick = state.dsp_graph.drums.kick_pattern.some(v => v === 1);
+        changes.push(hasKick ? "+Ritmo" : "Perc. Mute");
+    }
+    if (lower.includes("sine") || lower.includes("cycle") || lower.includes("saw") || lower.includes("square") || lower.includes("cutoff") || lower.includes("hz") || lower.includes("filtro") || lower.includes("filter") || lower.includes("plucky") || lower.includes("pluck")) {
+        changes.push(`Synth: ${state.dsp_graph.synth_lead.wave_type}`);
+    }
+    if (lower.match(/(\d+)\s*bpm/) || lower.includes("fast") || lower.includes("rápido") || lower.includes("rapido") || lower.includes("lento") || lower.includes("slow")) {
+        changes.push(`${state.meta.bpm} BPM`);
+    }
+    if (lower.includes("delay") || lower.includes("eco") || lower.includes("reverb") || lower.includes("espacio")) {
+        changes.push("Efectos");
+    }
+    
+    return changes.length > 0 ? `✓ Modificaciones: ${changes.join(', ')}` : "✓ Parámetro actualizado";
+}
+
+/**
+ * Appends a log item at the top of the command center prompt log.
+ */
+function addPromptToHistory(promptText, summary) {
+    if (!promptHistory) return;
+    
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    
+    // Add text safety boundaries escaping HTML tags
+    const cleanPrompt = promptText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const cleanSummary = summary.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    item.innerHTML = `
+        <span class="history-prompt">${cleanPrompt}</span>
+        <span class="history-result">${cleanSummary}</span>
+    `;
+    
+    promptHistory.prepend(item);
+    
+    // Limit to latest 4 prompts to prevent scroll overflow
+    while (promptHistory.children.length > 4) {
+        promptHistory.removeChild(promptHistory.lastChild);
+    }
 }
 
 /**

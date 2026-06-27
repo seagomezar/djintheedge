@@ -53,6 +53,43 @@
                     <input type="range" id="slider-len" min="4" max="32" step="4" value="16">
                 </div>
             </section>
+
+            <!-- AI State Monitor & History -->
+            <section class="state-monitor">
+                <h3 class="panel-title">🧠 AI DECK STATE</h3>
+                
+                <div class="state-group">
+                    <div class="state-item">
+                        <span class="state-label">SCALE / KEY</span>
+                        <span id="state-scale" class="state-value">A minor</span>
+                    </div>
+                    <div class="state-item">
+                        <span class="state-label">TEMPO</span>
+                        <span id="state-bpm" class="state-value">120 BPM</span>
+                    </div>
+                    <div class="state-item">
+                        <span class="state-label">SYNTH LEAD</span>
+                        <span id="state-synth" class="state-value">Sawtooth</span>
+                    </div>
+                    <div class="state-item">
+                        <span class="state-label">DRUM LAYER</span>
+                        <span id="state-drums" class="state-value">Kick + Hi-hat</span>
+                    </div>
+                    <div class="state-item">
+                        <span class="state-label">FX (DELAY / REVERB)</span>
+                        <span id="state-effects" class="state-value">Delay (30%)</span>
+                    </div>
+                </div>
+
+                <div class="history-divider"></div>
+                <h4 class="history-title">📜 PROMPT FEED</h4>
+                <div id="prompt-history" class="history-feed">
+                    <div class="history-item system">
+                        <span class="history-prompt">Sistema iniciado</span>
+                        <span class="history-result">✓ Groove por defecto cargado</span>
+                    </div>
+                </div>
+            </section>
         </main>
         
         <!-- Bottom Console Command Center -->
