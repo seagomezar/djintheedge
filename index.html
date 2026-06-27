@@ -3,13 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrowserDJ AI - On-Device Composer</title>
+    <title>BrowserDJ AI - On-Device Composer & DJ Deck</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts for premium cyberpunk typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="app-container">
-        <h1>BrowserDJ AI</h1>
+        <header>
+            <h1>🎛️ BrowserDJ <span class="badge">AI OFFLINE</span></h1>
+            <div class="metrics">
+                <span id="status-gpu" class="metric-item">GPU: Iniciando...</span>
+                <span id="status-audio" class="metric-item">Audio: Inactivo</span>
+                <span id="telemetry-worklet" class="metric-item">DSP Load: 0%</span>
+            </div>
+        </header>
+        
+        <main class="dj-deck">
+            <!-- Visualizer screen (Oscilloscope / Spectrum) -->
+            <section class="visualizer-container">
+                <canvas id="oscilloscope"></canvas>
+            </section>
+            
+            <!-- Analog Hardware Sliders -->
+            <section class="hardware-sliders">
+                <div class="slider-group">
+                    <div class="slider-label-row">
+                        <label for="slider-vol">MASTER VOL</label>
+                        <span id="val-vol">80%</span>
+                    </div>
+                    <input type="range" id="slider-vol" min="0" max="1" step="0.01" value="0.8">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="slider-label-row">
+                        <label for="slider-cutoff">SYNTH CUTOFF</label>
+                        <span id="val-cutoff">2000 Hz</span>
+                    </div>
+                    <input type="range" id="slider-cutoff" min="100" max="8000" step="10" value="2000">
+                </div>
+            </section>
+        </main>
+        
+        <!-- Bottom Console Command Center -->
+        <section class="console-interface">
+            <div class="sample-actions">
+                <button id="btn-load-samples" class="cyber-btn btn-secondary">
+                    📂 Cargar Samples Locales
+                </button>
+                <button id="btn-record" class="cyber-btn btn-danger">
+                    🔴 Grabar Mix
+                </button>
+            </div>
+            
+            <div class="input-row">
+                <input type="text" id="prompt-input" disabled 
+                    placeholder="Escribe tu comando musical en español/inglés (ej. 'beat synthwave rápido 135 bpm con mucho delay')...">
+                <button id="btn-send-prompt" class="cyber-btn btn-primary" disabled>
+                    Enviar Comando
+                </button>
+            </div>
+        </section>
     </div>
+    
     <script type="module" src="./js/app.js"></script>
 </body>
 </html>

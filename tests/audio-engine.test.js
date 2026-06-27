@@ -70,3 +70,25 @@ describe('WebRenderer simulation', () => {
         expect(renderer.synthWaveType).toBe('saw');
     });
 });
+
+describe('NLP Semantic Parser fallback', () => {
+    // Import helper dynamically or since we imported it:
+    // Wait, let's verify we import it at the top or do it locally
+    it('should parse BPM and other details from simple statements', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        
+        const result1 = parsePromptToDSP("make a fast synthwave beat at 135 bpm with low filter");
+        expect(result1.meta.bpm).toBe(135);
+        expect(result1.dsp_graph.synth_lead.wave_type).toBe('saw');
+        expect(result1.dsp_graph.synth_lead.filter_cutoff_hz).toBe(600);
+
+        const result2 = parsePromptToDSP("ritmo lento a 95 bpm con soft sine");
+        expect(result2.meta.bpm).toBe(95);
+        expect(result2.dsp_graph.synth_lead.wave_type).toBe('cycle');
+
+        const result3 = parsePromptToDSP("usa el sample bombo_808");
+        expect(result3.dsp_graph.drums.use_custom_sample).toBe(true);
+        expect(result3.dsp_graph.drums.sample_name).toBe("bombo_808");
+    });
+});
+
