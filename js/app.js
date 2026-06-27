@@ -24,9 +24,11 @@ const btnSamples = document.getElementById('btn-load-samples');
 const btnRecord = document.getElementById('btn-record');
 const sliderVol = document.getElementById('slider-vol');
 const sliderCutoff = document.getElementById('slider-cutoff');
+const sliderLen = document.getElementById('slider-len');
 
 const valVol = document.getElementById('val-vol');
 const valCutoff = document.getElementById('val-cutoff');
+const valLen = document.getElementById('val-len');
 
 // Canvas Oscilloscope
 const canvas = document.getElementById('oscilloscope');
@@ -107,6 +109,13 @@ function setupEventListeners() {
         const val = parseInt(e.target.value);
         audio.manualCutoff = val;
         valCutoff.innerText = `${val} Hz`;
+    });
+
+    sliderLen.addEventListener('input', async (e) => {
+        await ensureAudioResumed();
+        const val = parseInt(e.target.value);
+        audio.loopLength = val;
+        valLen.innerText = `${val} Steps`;
     });
 
     // 2. Prompt submissions

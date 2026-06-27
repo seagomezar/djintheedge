@@ -25,6 +25,7 @@ export class WebRenderer {
         this.useCustomSample = false;
         this.sampleName = '';
         this.adsr = [0.01, 0.15, 0.7, 0.2]; // default A, D, S, R
+        this.loopLength = 16; // default loop length in steps
 
         // Web Audio Nodes
         this.analyser = null;
@@ -225,7 +226,7 @@ export class WebRenderer {
             this.nextStepTime += stepDuration;
 
             // Increment loop step
-            this.currentStep = (this.currentStep + 1) % 16;
+            this.currentStep = (this.currentStep + 1) % this.loopLength;
         }
     }
 

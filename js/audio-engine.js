@@ -50,6 +50,16 @@ export class AudioEngine {
         }
     }
 
+    get loopLength() {
+        return this.core ? this.core.loopLength : 16;
+    }
+
+    set loopLength(val) {
+        if (this.core) {
+            this.core.loopLength = val;
+        }
+    }
+
     /**
      * Initializes the AudioContext and WebRenderer.
      */
