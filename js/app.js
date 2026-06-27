@@ -77,17 +77,33 @@ async function init() {
 }
 
 /**
+ * Ensures the AudioContext is resumed (bypasses browser autoplay policy).
+ */
+async function ensureAudioResumed() {
+    if (audio.ctx && audio.ctx.state === 'suspended') {
+        try {
+            await audio.ctx.resume();
+            statusAudio.innerText = "Audio: Engine Online";
+        } catch (err) {
+            console.error("Failed to resume AudioContext:", err);
+        }
+    }
+}
+
+/**
  * Connects DOM event handlers to engines.
  */
 function setupEventListeners() {
     // 1. Sliders interaction
-    sliderVol.addEventListener('input', (e) => {
+    sliderVol.addEventListener('input', async (e) => {
+        await ensureAudioResumed();
         const val = parseFloat(e.target.value);
         audio.manualVolume = val;
         valVol.innerText = `${Math.round(val * 100)}%`;
     });
 
-    sliderCutoff.addEventListener('input', (e) => {
+    sliderCutoff.addEventListener('input', async (e) => {
+        await ensureAudioResumed();
         const val = parseInt(e.target.value);
         audio.manualCutoff = val;
         valCutoff.innerText = `${val} Hz`;
@@ -101,11 +117,13 @@ function setupEventListeners() {
 
     // 3. Local samples pickers
     btnSamples.addEventListener('click', async () => {
+        await ensureAudioResumed();
         await SampleLoader.loadSamplesFromDirectory(audio);
     });
 
     // 4. Mix recording toggle
-    btnRecord.addEventListener('click', () => {
+    btnRecord.addEventListener('click', async () => {
+        await ensureAudioResumed();
         isRecording = !isRecording;
         audio.toggleRecording(isRecording);
         
@@ -125,6 +143,9 @@ function setupEventListeners() {
 async function handlePromptSubmission() {
     const text = promptInput.value.trim();
     if (!text) return;
+
+    // Ensure AudioContext is active on user gesture
+    await ensureAudioResumed();
 
     // UI Loading state
     btnSend.disabled = true;
