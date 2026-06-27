@@ -131,6 +131,13 @@ export class AudioEngine {
         const delayedSignal = el.delay({ size: 44100 }, el.ms2smp(300), fx.delay_feedback, rawMix);
         const finalOutput = el.mul(el.add(rawMix, el.mul(delayedSignal, 0.3)), masterGain);
 
+        // Set the active transition schedule inside the core renderer clock
+        if (config.transition) {
+            this.core.transition = config.transition;
+        } else {
+            this.core.transition = null;
+        }
+
         // Compile simulated tree
         this.core.render(finalOutput, finalOutput);
     }

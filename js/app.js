@@ -241,34 +241,54 @@ function updateStateMonitor(state) {
     
     // Scale root / Key
     if (stateScale) {
-        const isMinor = state.meta.scale.endsWith('m');
-        stateScale.innerText = isMinor ? `${state.meta.scale.replace('m', '')} menor` : `${state.meta.scale} mayor`;
+        if (state.transition && state.transition.active) {
+            const percent = Math.round((state.transition.current_step / state.transition.total_steps) * 100);
+            stateScale.innerText = `Morfosis: ${percent}%`;
+        } else {
+            const isMinor = state.meta.scale.endsWith('m');
+            stateScale.innerText = isMinor ? `${state.meta.scale.replace('m', '')} menor` : `${state.meta.scale} mayor`;
+        }
     }
     
     // Tempo
     if (stateBpm) {
-        stateBpm.innerText = `${state.meta.bpm} BPM`;
+        if (state.transition && state.transition.active) {
+            stateBpm.innerText = `${state.transition.current_step} / ${state.transition.total_steps} pasos`;
+        } else {
+            stateBpm.innerText = `${state.meta.bpm} BPM`;
+        }
     }
     
     // Synth lead settings
     if (stateSynth) {
         const waveName = state.dsp_graph.synth_lead.wave_type === 'cycle' ? 'Sine' : 
                          state.dsp_graph.synth_lead.wave_type === 'square' ? 'Cuadrada' : 'Sierra';
-        stateSynth.innerText = `${waveName} (${state.dsp_graph.synth_lead.filter_cutoff_hz}Hz)`;
+        
+        if (state.transition && state.transition.active) {
+            stateSynth.innerText = `Mapeando a ${waveName.toUpperCase()}`;
+        } else {
+            stateSynth.innerText = `${waveName} (${state.dsp_graph.synth_lead.filter_cutoff_hz}Hz)`;
+        }
     }
     
     // Drum active layers check
     if (stateDrums) {
         const hasKick = state.dsp_graph.drums.kick_pattern.some(v => v === 1);
         const hasHats = state.dsp_graph.drums.hihat_pattern.some(v => v === 1);
-        if (hasKick && hasHats) {
-            stateDrums.innerText = "Bombo + Platillo";
-        } else if (hasKick) {
-            stateDrums.innerText = "Solo Bombo";
-        } else if (hasHats) {
-            stateDrums.innerText = "Solo Platillo";
+        
+        if (state.transition && state.transition.active && state.transition.drum_exploding && (state.transition.total_steps - state.transition.current_step < 64)) {
+            const remaining = state.transition.total_steps - state.transition.current_step;
+            stateDrums.innerText = remaining < 8 ? "🔥 EXPLOSIÓN" : `⏳ REDOBLANDO (${remaining})`;
         } else {
-            stateDrums.innerText = "Sin Percusión";
+            if (hasKick && hasHats) {
+                stateDrums.innerText = "Bombo + Platillo";
+            } else if (hasKick) {
+                stateDrums.innerText = "Solo Bombo";
+            } else if (hasHats) {
+                stateDrums.innerText = "Solo Platillo";
+            } else {
+                stateDrums.innerText = "Sin Percusión";
+            }
         }
     }
     
@@ -287,6 +307,9 @@ function generateChangeSummary(text, state) {
     const changes = [];
     const lower = text.toLowerCase();
     
+    if (lower.match(/(\d+)\s*(steps|pasos|paso|step)/)) {
+        changes.push("Morfosis Programada");
+    }
     if (lower.match(/\b[a-g]\s*(minor|major|m|min|maj|menor|mayor)?\b/)) {
         changes.push(`Tono: ${state.meta.scale}`);
     }
@@ -347,6 +370,17 @@ function resizeCanvas() {
  */
 function drawVisualizer() {
     requestAnimationFrame(drawVisualizer);
+
+    // Sync active loop state transition steps in real-time from audio core
+    if (activeLoopState && activeLoopState.transition && activeLoopState.transition.active) {
+        if (audio.core && audio.core.transition) {
+            activeLoopState.transition.current_step = audio.core.transition.current_step;
+            activeLoopState.transition.active = audio.core.transition.active;
+            
+            // Trigger UI update during transition
+            updateStateMonitor(activeLoopState);
+        }
+    }
 
     const width = canvas.width;
     const height = canvas.height;

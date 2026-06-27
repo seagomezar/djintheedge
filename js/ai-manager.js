@@ -10,18 +10,36 @@ export class AIManager {
     constructor() {
         this.engine = null;
         this.currentAbortController = null;
-        this.systemPrompt = `Eres un motor de traducción musical estricto. Tu único objetivo es recibir descripciones de un DJ y transformarlas en configuraciones de síntesis y secuenciación en formato JSON.
-        REGLA CRÍTICA: Responde exclusivamente con el objeto JSON válido. No saludes, no expliques, no uses markdown fuera del JSON.
+        this.systemPrompt = `Eres un motor de traducción musical avanzado y estricto basado en Elementary Audio.
+        Tu único objetivo es recibir descripciones de un DJ y transformarlas en configuraciones de síntesis, secuenciación y transiciones en formato JSON.
+        
+        Conceptos de Elementary Audio aplicados:
+        1. Osciladores: 'cycle' representa ondas senoidales suaves, 'saw' representa ondas de sierra brillantes con muchos armónicos, 'square' representa ondas retro.
+        2. Filtros: Filtro de paso bajo biquad (filter_cutoff_hz) que controla el brillo (desde 100Hz oscuros hasta 8000Hz brillantes) con resonancia controlada.
+        3. Envolventes (ADSR): Ataques inmediatos para sonidos plucky (ej. [0.002, 0.08, 0.1, 0.05]) y ataques lentos para pads atmosféricos.
+        4. Efectos: Eco/Delay (delay_feedback) y reverberación (reverb_mix).
+        
+        Soporte de Transiciones Temporales (Progressive Transitions):
+        Si el usuario especifica una transición a lo largo de pasos (steps), debes incluir un bloque "transition" en tu respuesta JSON para indicar que los parámetros deben evolucionar dinámicamente.
         
         Esquema requerido:
         {
           "meta": { "bpm": number, "scale": string, "energy": number },
           "dsp_graph": {
             "drums": { "use_custom_sample": boolean, "sample_name": string, "kick_pattern": number[], "hihat_pattern": number[] },
-            "synth_lead": { "wave_type": "saw"|"cycle", "filter_cutoff_hz": number, "filter_resonance": number, "adsr": number[], "notes_sequence": number[] },
+            "synth_lead": { "wave_type": "saw"|"cycle"|"square", "filter_cutoff_hz": number, "filter_resonance": number, "adsr": number[], "notes_sequence": number[] },
             "effects": { "delay_feedback": number, "reverb_mix": number }
+          },
+          "transition": {
+            "active": boolean,
+            "total_steps": number,
+            "target_scale": string,
+            "target_cutoff": number,
+            "drum_exploding": boolean
           }
-        }`;
+        }
+        
+        REGLA CRÍTICA: Responde exclusivamente con el objeto JSON válido. No saludes, no expliques, no uses markdown fuera del JSON.`;
     }
 
     /**
@@ -240,6 +258,45 @@ export function parsePromptToDSP(prompt, currentState = null) {
     if (filter_cutoff_hz > 2000) energy += 0.15;
     energy = Math.max(0.1, Math.min(1.0, energy));
 
+    // --- 6. Transition Parsing ---
+    let transition = null;
+    const stepsMatch = text.match(/(\d+)\s*(steps|pasos|paso|step)/);
+    if (stepsMatch) {
+        const total_steps = parseInt(stepsMatch[1]);
+        let target_scale = scale;
+        
+        // Detect destination scale (e.g. "to A major" or "a la mayor")
+        const destScaleMatch = text.match(/(?:to|a|hasta)\s+([a-g])\s*(minor|major|m|min|maj|menor|mayor)?\b/);
+        if (destScaleMatch) {
+            const root = destScaleMatch[1].toUpperCase();
+            const mode = destScaleMatch[2] || '';
+            const isMinor = mode.includes("m") || mode.includes("min") || text.includes("menor") || text.includes("minor");
+            target_scale = root + (isMinor ? "m" : "");
+        } else if (text.includes("a major") || text.includes("a mayor")) {
+            target_scale = "A";
+        } else if (text.includes("a minor") || text.includes("a menor")) {
+            target_scale = "Am";
+        }
+        
+        let target_cutoff = filter_cutoff_hz;
+        if (text.includes("brillian") || text.includes("brillante") || text.includes("bright") || text.includes("open")) {
+            target_cutoff = 4500;
+        }
+        
+        const drum_exploding = text.includes("exploding") || text.includes("explotando") || text.includes("explosion") || text.includes("climax");
+        
+        transition = {
+            active: true,
+            current_step: 0,
+            total_steps,
+            start_scale: scale,
+            target_scale,
+            start_cutoff: filter_cutoff_hz,
+            target_cutoff,
+            drum_exploding
+        };
+    }
+
     // Return mapped DSP structure
     return {
         meta: {
@@ -265,7 +322,8 @@ export function parsePromptToDSP(prompt, currentState = null) {
                 delay_feedback,
                 reverb_mix
             }
-        }
+        },
+        transition
     };
 }
 

@@ -26,6 +26,7 @@ export class WebRenderer {
         this.sampleName = '';
         this.adsr = [0.01, 0.15, 0.7, 0.2]; // default A, D, S, R
         this.loopLength = 16; // default loop length in steps
+        this.transition = null; // tracks progress-based audio parameter morphing
 
         // Web Audio Nodes
         this.analyser = null;
@@ -230,11 +231,73 @@ export class WebRenderer {
         }
     }
 
+    generateScaleMelody(rootName, isMinor) {
+        const roots = { 'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 57, 'B': 59 };
+        let rootMidi = roots[rootName] || 60;
+        const intervals = isMinor ? [0, 2, 3, 5, 7, 8, 10, 12] : [0, 2, 4, 5, 7, 9, 11, 12];
+        
+        const pattern = [0, 2, 4, 7, 4, 2, 0, 7, 0, 2, 4, 7, 4, 2, -1, -2];
+        return pattern.map(idx => {
+            if (idx === -1) return rootMidi - 12; // Octave below
+            if (idx === -2) return rootMidi - 5; // Fifth below
+            const interval = intervals[idx % intervals.length];
+            return rootMidi + interval;
+        });
+    }
+
     scheduleStep(step, time) {
         const stepDuration = 60.0 / this.bpm / 4.0;
 
+        let kickActive = this.kickPattern.length > 0 ? this.kickPattern[step % this.kickPattern.length] : 0;
+        let hihatActive = this.hihatPattern.length > 0 ? this.hihatPattern[step % this.hihatPattern.length] : 0;
+        let midiNote = this.synthSequence.length > 0 ? this.synthSequence[step % this.synthSequence.length] : 0;
+
+        // Apply Progressive Transitions (e.g. sweeps and explosions)
+        if (this.transition && this.transition.active) {
+            this.transition.current_step++;
+            const t = Math.min(1.0, this.transition.current_step / this.transition.total_steps);
+
+            // 1. Interpolate Biquad Filter Cutoff Frequency
+            const currentCutoff = this.transition.start_cutoff + t * (this.transition.target_cutoff - this.transition.start_cutoff);
+            if (this.synthFilter) {
+                this.synthFilter.frequency.setValueAtTime(currentCutoff, time);
+            }
+
+            // 2. Scale Shift / Key Transposition (trigger at 50% progress)
+            if (t >= 0.5 && this.transition.start_scale !== this.transition.target_scale) {
+                const targetKey = this.transition.target_scale;
+                const newSequence = this.generateScaleMelody(targetKey.replace("m", ""), !targetKey.endsWith("m"));
+                midiNote = newSequence[step % newSequence.length];
+            }
+
+            // 3. Drum Exploding Climax Build (Accelerating roll on last steps)
+            if (this.transition.drum_exploding) {
+                const stepsRemaining = this.transition.total_steps - this.transition.current_step;
+                if (stepsRemaining < 64) {
+                    this.synthWaveType = 'saw'; // Force saw oscillator for a bright, energetic build
+
+                    if (stepsRemaining < 8) {
+                        // Exploding climax trigger
+                        kickActive = 1;
+                        hihatActive = 1;
+                    } else if (stepsRemaining < 24) {
+                        // Accelerating kick/hat roll
+                        kickActive = 1;
+                        hihatActive = (step % 2 === 0) ? 1 : 0;
+                    } else if (stepsRemaining < 48) {
+                        // Double kick speed
+                        kickActive = (step % 2 === 0) ? 1 : 0;
+                    }
+                }
+            }
+
+            // Deactivate transition on completion
+            if (t >= 1.0) {
+                this.transition.active = false;
+            }
+        }
+
         // 1. Kick Drum
-        const kickActive = this.kickPattern.length > 0 ? this.kickPattern[step % this.kickPattern.length] : 0;
         if (kickActive === 1) {
             if (this.useCustomSample && this.samples[this.sampleName]) {
                 this.playSample(this.sampleName, time);
@@ -244,17 +307,13 @@ export class WebRenderer {
         }
 
         // 2. Hi-hat
-        const hihatActive = this.hihatPattern.length > 0 ? this.hihatPattern[step % this.hihatPattern.length] : 0;
         if (hihatActive === 1) {
             this.playSyntheticHihat(time);
         }
 
         // 3. Synthesizer Lead
-        if (this.synthSequence.length > 0) {
-            const midiNote = this.synthSequence[step % this.synthSequence.length];
-            if (midiNote > 0) {
-                this.playSynthNote(midiNote, time, stepDuration);
-            }
+        if (midiNote > 0) {
+            this.playSynthNote(midiNote, time, stepDuration);
         }
     }
 
