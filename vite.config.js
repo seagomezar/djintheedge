@@ -7,7 +7,4 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
-  test: {
-    environment: 'happy-dom', // For testing browser DOM APIs in Vitest
-  },
 });
