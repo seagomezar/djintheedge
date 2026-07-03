@@ -4,7 +4,7 @@
  * AI prompt translator, and the procedural Audio Engine.
  */
 
-import { AIManager } from './ai-manager.js';
+import { AIManager, defaultTemplate } from './ai-manager.js';
 import { AudioEngine } from './audio-engine.js';
 import { SampleLoader } from './sample-loader.js';
 
@@ -14,29 +14,12 @@ const audio = new AudioEngine();
 
 let isRecording = false;
 
-// Current stateful loop configuration to accumulate user modifications
-let activeLoopState = {
-    meta: { bpm: 120, scale: "Am", energy: 0.6 },
-    dsp_graph: {
-        drums: {
-            use_custom_sample: false,
-            sample_name: "",
-            kick_pattern: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0],
-            hihat_pattern: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1]
-        },
-        synth_lead: {
-            wave_type: "saw",
-            filter_cutoff_hz: 2000,
-            filter_resonance: 2.5,
-            adsr: [0.01, 0.15, 0.7, 0.2],
-            notes_sequence: [57, 60, 64, 67, 64, 60, 57, 0, 57, 60, 64, 67, 64, 60, 55, 0]
-        },
-        effects: {
-            delay_feedback: 0.3,
-            reverb_mix: 0.15
-        }
-    }
-};
+// Current stateful loop configuration (track-array contract) that accumulates
+// user modifications across prompts.
+let activeLoopState = defaultTemplate();
+
+// Track ids whose content changed on the most recent prompt (for grid highlight).
+let changedTrackIds = [];
 
 // Monitor DOM Elements
 const stateScale = document.getElementById('state-scale');
@@ -44,6 +27,7 @@ const stateBpm = document.getElementById('state-bpm');
 const stateSynth = document.getElementById('state-synth');
 const stateDrums = document.getElementById('state-drums');
 const stateEffects = document.getElementById('state-effects');
+const trackGrid = document.getElementById('track-grid');
 const promptHistory = document.getElementById('prompt-history');
 
 // DOM Elements
@@ -147,7 +131,12 @@ function setupEventListeners() {
         await ensureAudioResumed();
         const val = parseInt(e.target.value);
         audio.loopLength = val;
+        activeLoopState.meta.loop_steps = val;
+        // Re-fit patterns/notes to the new length and re-render.
+        activeLoopState = refitLoopLength(activeLoopState, val);
+        audio.renderGraph(activeLoopState);
         valLen.innerText = `${val} Steps`;
+        renderStepGrid(activeLoopState, []);
     });
 
     // 2. Prompt submissions
@@ -194,22 +183,33 @@ async function handlePromptSubmission() {
     btnSend.innerText = "Traduciendo...";
 
     try {
+        const prevState = activeLoopState;
         const dspConfig = await ai.generateDSPConfig(text, activeLoopState);
         if (dspConfig) {
-            // Update active stateful loop configuration (accumulate layers)
+            // Diff old vs new by track id + fields to know what to highlight.
+            changedTrackIds = diffChangedTracks(prevState, dspConfig);
+
+            // Update active stateful loop configuration (accumulate layers).
             activeLoopState = dspConfig;
 
-            // Update audio engine graph parameters
+            // Update audio engine scheduler state.
             audio.renderGraph(activeLoopState);
-            
-            // Sync slider and value readouts to whatever cutoff the AI parsed
-            const parsedCutoff = activeLoopState.dsp_graph.synth_lead.filter_cutoff_hz;
-            sliderCutoff.value = parsedCutoff;
-            audio.manualCutoff = parsedCutoff;
-            valCutoff.innerText = `${parsedCutoff} Hz`;
 
-            // Update DOM state monitor panel
+            // Sync the cutoff slider to the lead synth track's cutoff, if present.
+            const lead = findLeadTrack(activeLoopState);
+            if (lead) {
+                sliderCutoff.value = lead.filter_cutoff_hz;
+                audio.manualCutoff = lead.filter_cutoff_hz;
+                valCutoff.innerText = `${lead.filter_cutoff_hz} Hz`;
+            }
+
+            // Sync the loop-length slider/readout to the config.
+            sliderLen.value = activeLoopState.meta.loop_steps;
+            valLen.innerText = `${activeLoopState.meta.loop_steps} Steps`;
+
+            // Update DOM state monitor panel + step grid.
             updateStateMonitor(activeLoopState);
+            renderStepGrid(activeLoopState, changedTrackIds);
 
             // Log prompt history item
             const summary = generateChangeSummary(text, activeLoopState);
@@ -231,6 +231,61 @@ async function handlePromptSubmission() {
 function loadDefaultGroove() {
     audio.renderGraph(activeLoopState);
     updateStateMonitor(activeLoopState);
+    renderStepGrid(activeLoopState, []);
+}
+
+/**
+ * Re-fits every track's pattern/notes array to a new loop length by
+ * repeating/trimming the existing content (modulo wrap).
+ */
+function refitLoopLength(state, steps) {
+    const next = JSON.parse(JSON.stringify(state));
+    next.meta.loop_steps = steps;
+    for (const t of next.tracks) {
+        if (t.type === 'drum') {
+            const base = t.pattern.length ? t.pattern : [0];
+            t.pattern = Array.from({ length: steps }, (_, i) => base[i % base.length]);
+        } else {
+            const base = t.notes.length ? t.notes : [0];
+            t.notes = Array.from({ length: steps }, (_, i) => base[i % base.length]);
+        }
+    }
+    return next;
+}
+
+/**
+ * Returns the lead synth track (or the first synth track) from a config.
+ */
+function findLeadTrack(state) {
+    if (!state || !Array.isArray(state.tracks)) return null;
+    return state.tracks.find(t => t.id === 'lead')
+        || state.tracks.find(t => t.type === 'synth')
+        || null;
+}
+
+/**
+ * Diffs two track-array states and returns the ids of tracks that were
+ * added, removed, or whose content changed.
+ */
+function diffChangedTracks(prev, next) {
+    const ids = new Set();
+    const prevById = {};
+    if (prev && Array.isArray(prev.tracks)) {
+        for (const t of prev.tracks) prevById[t.id] = t;
+    }
+    const nextIds = new Set();
+    if (next && Array.isArray(next.tracks)) {
+        for (const t of next.tracks) {
+            nextIds.add(t.id);
+            const before = prevById[t.id];
+            if (!before || JSON.stringify(before) !== JSON.stringify(t)) ids.add(t.id);
+        }
+    }
+    // Removed tracks also count as a change (their row disappears).
+    for (const id in prevById) {
+        if (!nextIds.has(id)) ids.add(id);
+    }
+    return [...ids];
 }
 
 /**
@@ -238,7 +293,11 @@ function loadDefaultGroove() {
  */
 function updateStateMonitor(state) {
     if (!state) return;
-    
+
+    const lead = findLeadTrack(state);
+    const kick = state.tracks.find(t => t.role === 'kick');
+    const hats = state.tracks.find(t => t.role === 'hihat');
+
     // Scale root / Key
     if (stateScale) {
         if (state.transition && state.transition.active) {
@@ -249,7 +308,7 @@ function updateStateMonitor(state) {
             stateScale.innerText = isMinor ? `${state.meta.scale.replace('m', '')} menor` : `${state.meta.scale} mayor`;
         }
     }
-    
+
     // Tempo
     if (stateBpm) {
         if (state.transition && state.transition.active) {
@@ -258,46 +317,142 @@ function updateStateMonitor(state) {
             stateBpm.innerText = `${state.meta.bpm} BPM`;
         }
     }
-    
+
     // Synth lead settings
     if (stateSynth) {
-        const waveName = state.dsp_graph.synth_lead.wave_type === 'cycle' ? 'Sine' : 
-                         state.dsp_graph.synth_lead.wave_type === 'square' ? 'Cuadrada' : 'Sierra';
-        
-        if (state.transition && state.transition.active) {
-            stateSynth.innerText = `Mapeando a ${waveName.toUpperCase()}`;
+        if (!lead) {
+            stateSynth.innerText = "Sin Synth";
         } else {
-            stateSynth.innerText = `${waveName} (${state.dsp_graph.synth_lead.filter_cutoff_hz}Hz)`;
+            const waveName = lead.wave_type === 'cycle' ? 'Sine' :
+                             lead.wave_type === 'square' ? 'Cuadrada' : 'Sierra';
+            if (state.transition && state.transition.active) {
+                stateSynth.innerText = `Mapeando a ${waveName.toUpperCase()}`;
+            } else {
+                stateSynth.innerText = `${waveName} (${lead.filter_cutoff_hz}Hz)`;
+            }
         }
     }
-    
+
     // Drum active layers check
     if (stateDrums) {
-        const hasKick = state.dsp_graph.drums.kick_pattern.some(v => v === 1);
-        const hasHats = state.dsp_graph.drums.hihat_pattern.some(v => v === 1);
-        
+        const hasKick = kick && !kick.muted && kick.pattern.some(v => v === 1);
+        const hasHats = hats && !hats.muted && hats.pattern.some(v => v === 1);
+
         if (state.transition && state.transition.active && state.transition.drum_exploding && (state.transition.total_steps - state.transition.current_step < 64)) {
             const remaining = state.transition.total_steps - state.transition.current_step;
             stateDrums.innerText = remaining < 8 ? "🔥 EXPLOSIÓN" : `⏳ REDOBLANDO (${remaining})`;
         } else {
-            if (hasKick && hasHats) {
-                stateDrums.innerText = "Bombo + Platillo";
-            } else if (hasKick) {
-                stateDrums.innerText = "Solo Bombo";
-            } else if (hasHats) {
-                stateDrums.innerText = "Solo Platillo";
-            } else {
-                stateDrums.innerText = "Sin Percusión";
-            }
+            if (hasKick && hasHats) stateDrums.innerText = "Bombo + Platillo";
+            else if (hasKick) stateDrums.innerText = "Solo Bombo";
+            else if (hasHats) stateDrums.innerText = "Solo Platillo";
+            else stateDrums.innerText = "Sin Percusión";
         }
     }
-    
+
     // Effects dry/wet levels
     if (stateEffects) {
-        const delayPercent = Math.round(state.dsp_graph.effects.delay_feedback * 100);
-        const reverbPercent = Math.round(state.dsp_graph.effects.reverb_mix * 100);
+        const delayPercent = Math.round(state.effects.delay_feedback * 100);
+        const reverbPercent = Math.round(state.effects.reverb_mix * 100);
         stateEffects.innerText = `eco ${delayPercent}% / rev ${reverbPercent}%`;
     }
+}
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+/**
+ * Converts a MIDI note number to a short name (e.g. 60 -> "C4").
+ */
+function midiToName(midi) {
+    if (midi <= 0) return '';
+    const name = NOTE_NAMES[midi % 12];
+    const octave = Math.floor(midi / 12) - 1;
+    return `${name}${octave}`;
+}
+
+/**
+ * Renders the per-track step grid. Each track is one row of loop_steps cells;
+ * active steps light up (synth rows show note names). Tracks in changedIds
+ * pulse briefly. A per-track mute toggle writes back into activeLoopState.
+ */
+function renderStepGrid(state, changedIds = []) {
+    if (!trackGrid || !state || !Array.isArray(state.tracks)) return;
+    const steps = state.meta.loop_steps;
+    trackGrid.innerHTML = '';
+
+    for (const track of state.tracks) {
+        const row = document.createElement('div');
+        row.className = 'track-row';
+        row.dataset.trackId = track.id;
+        if (changedIds.includes(track.id)) row.classList.add('changed');
+        if (track.muted) row.classList.add('muted');
+
+        // Mute toggle + label.
+        const mute = document.createElement('button');
+        mute.className = 'track-mute';
+        mute.type = 'button';
+        mute.textContent = track.muted ? '🔇' : '🔊';
+        mute.title = `${track.id} (mute/unmute)`;
+        mute.addEventListener('click', () => toggleTrackMute(track.id));
+
+        const label = document.createElement('span');
+        label.className = 'track-label';
+        label.textContent = track.id;
+
+        const cells = document.createElement('div');
+        cells.className = 'track-cells';
+        cells.style.gridTemplateColumns = `repeat(${steps}, 1fr)`;
+
+        for (let i = 0; i < steps; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.dataset.step = i;
+            if (track.type === 'drum') {
+                if (track.pattern[i] === 1) cell.classList.add('active');
+            } else {
+                const note = track.notes[i];
+                if (note > 0) {
+                    cell.classList.add('active');
+                    cell.textContent = midiToName(note);
+                }
+            }
+            cells.appendChild(cell);
+        }
+
+        row.appendChild(mute);
+        row.appendChild(label);
+        row.appendChild(cells);
+        trackGrid.appendChild(row);
+    }
+    // Clear the pulse class after the animation so a later prompt can re-trigger it.
+    if (changedIds.length) {
+        setTimeout(() => {
+            trackGrid.querySelectorAll('.track-row.changed').forEach(r => r.classList.remove('changed'));
+        }, 1200);
+    }
+}
+
+/**
+ * Toggles a track's muted flag live and re-renders (audio picks it up next step).
+ */
+function toggleTrackMute(trackId) {
+    const track = activeLoopState.tracks.find(t => t.id === trackId);
+    if (!track) return;
+    track.muted = !track.muted;
+    audio.renderGraph(activeLoopState);
+    updateStateMonitor(activeLoopState);
+    renderStepGrid(activeLoopState, []);
+}
+
+/**
+ * Highlights the current playhead column in the grid without a full re-render.
+ */
+function updatePlayhead(step) {
+    if (!trackGrid) return;
+    trackGrid.querySelectorAll('.grid-cell.playhead').forEach(c => c.classList.remove('playhead'));
+    trackGrid.querySelectorAll('.track-cells').forEach(cells => {
+        const cell = cells.children[step];
+        if (cell) cell.classList.add('playhead');
+    });
 }
 
 /**
@@ -314,11 +469,16 @@ function generateChangeSummary(text, state) {
         changes.push(`Tono: ${state.meta.scale}`);
     }
     if (lower.includes("percusion") || lower.includes("percussion") || lower.includes("drum") || lower.includes("bateria") || lower.includes("bombo") || lower.includes("hats") || lower.includes("ritmo")) {
-        const hasKick = state.dsp_graph.drums.kick_pattern.some(v => v === 1);
+        const kick = state.tracks.find(t => t.role === 'kick');
+        const hasKick = kick && !kick.muted && kick.pattern.some(v => v === 1);
         changes.push(hasKick ? "+Ritmo" : "Perc. Mute");
     }
+    if (lower.includes("bass") || lower.includes("bajo") || lower.includes("pad") || lower.includes("lead") || lower.includes("add") || lower.includes("añade") || lower.includes("agrega")) {
+        changes.push(`Pistas: ${state.tracks.length}`);
+    }
     if (lower.includes("sine") || lower.includes("cycle") || lower.includes("saw") || lower.includes("square") || lower.includes("cutoff") || lower.includes("hz") || lower.includes("filtro") || lower.includes("filter") || lower.includes("plucky") || lower.includes("pluck")) {
-        changes.push(`Synth: ${state.dsp_graph.synth_lead.wave_type}`);
+        const lead = findLeadTrack(state);
+        if (lead) changes.push(`Synth: ${lead.wave_type}`);
     }
     if (lower.match(/(\d+)\s*bpm/) || lower.includes("fast") || lower.includes("rápido") || lower.includes("rapido") || lower.includes("lento") || lower.includes("slow")) {
         changes.push(`${state.meta.bpm} BPM`);
@@ -376,10 +536,15 @@ function drawVisualizer() {
         if (audio.core && audio.core.transition) {
             activeLoopState.transition.current_step = audio.core.transition.current_step;
             activeLoopState.transition.active = audio.core.transition.active;
-            
+
             // Trigger UI update during transition
             updateStateMonitor(activeLoopState);
         }
+    }
+
+    // Move the step-grid playhead in sync with the audio scheduler.
+    if (audio.core && typeof audio.core.currentStep === 'number') {
+        updatePlayhead(audio.core.currentStep);
     }
 
     const width = canvas.width;

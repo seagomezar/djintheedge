@@ -496,6 +496,83 @@ input[type="range"]::-moz-range-thumb:hover {
     font-size: 0.68rem;
 }
 
+/* Track step-grid */
+.track-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-bottom: 6px;
+}
+.track-grid::-webkit-scrollbar { width: 4px; }
+.track-grid::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+
+.track-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+.track-row.muted { opacity: 0.4; }
+.track-row.changed {
+    animation: trackPulse 1.2s ease-out;
+}
+@keyframes trackPulse {
+    0% { background-color: var(--accent-glow); box-shadow: 0 0 12px var(--accent-glow); }
+    100% { background-color: transparent; box-shadow: none; }
+}
+
+.track-mute {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 2px 3px;
+}
+.track-label {
+    flex: 0 0 42px;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.track-cells {
+    flex: 1;
+    display: grid;
+    gap: 2px;
+}
+.grid-cell {
+    aspect-ratio: 1 / 1;
+    min-height: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background-color: rgba(30, 41, 93, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.5rem;
+    color: var(--bg-color);
+    overflow: hidden;
+}
+.grid-cell.active {
+    background-color: var(--accent-color);
+    box-shadow: 0 0 6px var(--accent-glow);
+}
+.grid-cell.playhead {
+    outline: 2px solid var(--secondary-color);
+    outline-offset: -1px;
+}
+
 /* Utilities */
 @media(max-width: 768px) {
     .dj-deck {

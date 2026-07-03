@@ -5,7 +5,6 @@
  */
 
 import { WebRenderer } from './lib/elementary-renderer.js';
-import { el } from './lib/elementary-core.js';
 
 export class AudioEngine {
     constructor() {
@@ -42,10 +41,23 @@ export class AudioEngine {
         return this._manualCutoff;
     }
 
+    /**
+     * The cutoff slider acts as a live MASTER cutoff: it sweeps every synth
+     * track's filter node at once. Per-track base cutoffs (filter_cutoff_hz)
+     * still seed a voice the first time it plays; thereafter the slider and the
+     * transition sweep drive all live filter nodes together.
+     */
     set manualCutoff(val) {
         this._manualCutoff = val;
-        if (this.core && this.core.synthFilter) {
-            // Update lowpass filter cutoff frequency dynamically
+        if (!this.core || !this.ctx) return;
+        const filters = this.core.synthFilters || {};
+        let any = false;
+        for (const id in filters) {
+            filters[id].frequency.setValueAtTime(val, this.ctx.currentTime);
+            any = true;
+        }
+        // Fallback to the most-recent node if the per-track cache is empty.
+        if (!any && this.core.synthFilter) {
             this.core.synthFilter.frequency.setValueAtTime(val, this.ctx.currentTime);
         }
     }
@@ -96,50 +108,18 @@ export class AudioEngine {
     }
 
     /**
-     * Translates the JSON config into Elementary DSL and triggers core rendering.
+     * Applies a track-array DSP config to the renderer's live scheduler state.
+     * Tracks are addressed by id/type - there is no positional node contract.
+     * @param {object} config the track-array DSP contract
      */
     renderGraph(config) {
         if (!config) return;
-        
-        const { bpm } = config.meta;
-        const drums = config.dsp_graph.drums;
-        const synth = config.dsp_graph.synth_lead;
-        const fx = config.dsp_graph.effects;
 
-        const clock = el.metro({ bpm: bpm });
-        const masterGain = el.sm(this.manualVolume);
-        const dynamicCutoff = el.sm(this.manualCutoff);
+        // Set the active transition schedule inside the core renderer clock.
+        this.core.transition = config.transition || null;
 
-        const kickSeq = el.seq2({ seq: drums.kick_pattern, hold: false }, clock);
-        let kickSignal = el.mul(el.cycle(55), el.adsr(0.005, 0.1, 0, 0, kickSeq));
-
-        if (drums.use_custom_sample && this.loadedSamples[drums.sample_name]) {
-            kickSignal = el.sampleFlash({ path: drums.sample_name }, kickSeq);
-        }
-
-        const hihatSeq = el.seq2({ seq: drums.hihat_pattern, hold: false }, clock);
-        const hihatSignal = el.mul(el.noise(), el.adsr(0.002, 0.05, 0, 0, hihatSeq));
-        const rhythmSection = el.add(kickSignal, el.mul(hihatSignal, 0.4));
-
-        const noteSeq = el.seq2({ seq: synth.notes_sequence, hold: true }, clock);
-        const hz = el.mtof(noteSeq);
-        let oscillator = synth.wave_type === 'saw' ? el.saw(hz) : el.cycle(hz);
-        const env = el.adsr(synth.adsr[0], synth.adsr[1], synth.adsr[2], synth.adsr[3], noteSeq);
-        const filteredSynth = el.svf({ mode: 'lowpass', cutoff: dynamicCutoff, res: synth.filter_resonance }, el.mul(oscillator, env));
-
-        const rawMix = el.add(rhythmSection, el.mul(filteredSynth, 0.5));
-        const delayedSignal = el.delay({ size: 44100 }, el.ms2smp(300), fx.delay_feedback, rawMix);
-        const finalOutput = el.mul(el.add(rawMix, el.mul(delayedSignal, 0.3)), masterGain);
-
-        // Set the active transition schedule inside the core renderer clock
-        if (config.transition) {
-            this.core.transition = config.transition;
-        } else {
-            this.core.transition = null;
-        }
-
-        // Compile simulated tree
-        this.core.render(finalOutput, finalOutput);
+        // Hand the config to the renderer, which reads meta/tracks/effects directly.
+        this.core.render(config);
     }
 
     /**

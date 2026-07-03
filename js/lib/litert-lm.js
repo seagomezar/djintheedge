@@ -3,7 +3,7 @@
  * Simulates WebGPU model loading and uses the semantic parser for offline execution.
  */
 
-import { parsePromptToDSP } from '../ai-manager.js';
+import { parsePromptToDSP } from '../parser.js';
 
 export class LiteRTLMEngine {
     constructor(modelPath) {
@@ -51,7 +51,7 @@ class LiteRTLMConversation {
     /**
      * Processes input prompts and outputs the target JSON music configuration.
      */
-    async sendMessage(userPrompt) {
+    async sendMessage(userPrompt, currentState = null) {
         // Respect AbortSignal
         if (this.signal && this.signal.aborted) {
             const err = new Error("Inference aborted by system controller.");
@@ -73,7 +73,7 @@ class LiteRTLMConversation {
         });
 
         // Run client-side NLP parser to generate high-fidelity DSP JSON
-        const dspJson = parsePromptToDSP(userPrompt);
+        const dspJson = parsePromptToDSP(userPrompt, currentState);
         
         return {
             text: JSON.stringify(dspJson, null, 2)

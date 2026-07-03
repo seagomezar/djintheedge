@@ -3,3 +3,4 @@ dist/
 .gemini/
 *.log
 .DS_Store
+.claude-dad/.home-dir

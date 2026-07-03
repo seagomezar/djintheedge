@@ -1,71 +1,96 @@
 # Spec: BrowserDJ AI - On-Device DJ Deck & Composer
 
-## Objective
-We are building **BrowserDJ AI**, a client-side, offline-first DJ deck and procedural synthesizer composer that runs 100% in the browser. Users will be able to control the musical performance in real-time by writing natural language prompts (e.g., "make a fast synthwave beat with heavy delay and a 128 BPM kick"), which are translated into dynamic DSP graphs and sequencer patterns.
+> Status: Living document.
+> This spec documents the application **as actually implemented today** (Section A) and the **forward-looking vision** it is built toward (Section B).
+> Where the older `spec.md`, `plan.md`, and the PRD describe capabilities that are currently facades or stubs, this document says so plainly.
 
-### Key Features & User Stories
-1. **Prompt-to-Music (Offline AI)**: A user inputs a description. The system parses it offline and instantly updates the playing drums, synthesizer melody, cutoff filter, and audio effects.
-2. **Zero-Latency Audio**: The audio plays smoothly at 44.1kHz without pops, cracks, or UI-driven thread blockages.
-3. **Local Audio Integration**: A user loads a directory of local audio samples (WAV/MP3) which are integrated directly into the sequencer.
-4. **Mix Recording**: A user can record their performance session and download a high-fidelity WAV file.
-5. **Premium Interactive UI**: A futuristic, glowing dark cyber-synthwave style UI with a real-time oscilloscope/spectrum visualizer, physical sliders, and interactive controls.
+---
+
+## Objective
+
+BrowserDJ AI is a 100% client-side, offline-first DJ deck and procedural synthesizer composer that runs entirely in the browser.
+A user drives a live musical performance by typing natural-language prompts (for example, "fast synthwave beat at 128 bpm with a dark filter and heavy delay"), which are translated into a deterministic DSP configuration and heard immediately.
+
+**Who it is for:** live performers, bedroom producers, and creative technologists who want an instant, private, no-install music playground that works with no network connection.
+
+**What success looks like:**
+- A prompt changes the music in under 400ms.
+- Audio plays continuously at 44.1kHz with no clicks, pops, or dropouts, even while parsing prompts.
+- Everything runs offline with zero server calls and no API keys.
+- The interface feels like a premium piece of cyber-synthwave hardware.
 
 ---
 
 ## Tech Stack
-- **Core**: Vanilla HTML5, CSS3, ES6+ JavaScript Modules
-- **Audio Engine**: Web Audio API implementing the **Elementary Audio** functional/declarative DSL model.
-- **AI Engine**: Hybrid LiteRT-LM framework:
-  1. *Actual Engine*: WebGPU-based LiteRT-LM engine (MediaPipe LLM Inference model, e.g. Gemma 2B/4B).
-  2. *Intelligent Semantic Fallback*: Client-side rule-based Natural Language Processing (NLP) parser that processes user inputs instantly and generates valid DSP contracts, ensuring the application is fully functional out of the box even without a 2.58GB WebGPU model download.
-- **Dev Tooling**: Vite for static serving, HMR, and clean ES module resolution.
+
+- **Core:** Vanilla HTML5, CSS3, ES6+ JavaScript modules. No UI framework.
+- **Build/Dev:** Vite 5 (static serving, HMR, ESM resolution). `vite.config.js` sets COOP/COEP cross-origin-isolation headers (`same-origin` / `require-corp`) so a real WebGPU/`SharedArrayBuffer` model can be plugged in later.
+- **Audio Engine:** Web Audio API, hand-built, presented through an Elementary-Audio-style declarative DSL (`el.*`). No external audio library.
+- **"AI" Engine:** A `LiteRTLMEngine` facade plus a real, bilingual (Spanish/English) rule-based NLP parser. Every code path deterministically converges on the parser today (see Section A).
+- **Testing:** Vitest.
+- **Runtime dependencies:** none. Only `vite` and `vitest` as dev dependencies.
 
 ---
 
 ## Commands
-We will use Vite as our local dev server and builder:
-- **Initialize Project**: `npm init -y` and `npm install -D vite`
-- **Run Dev Server**: `npx vite --port 5173`
-- **Build**: `npx vite build`
-- **Preview Build**: `npx vite preview`
+
+```
+Install:      npm install
+Dev server:   npm run dev            # vite (defaults to http://localhost:5173)
+Build:        npm run build          # vite build
+Preview:      npm run preview        # serve the production build
+Test:         npm test               # vitest run (single pass, CI-friendly)
+Test (watch): npx vitest             # interactive watch mode
+```
 
 ---
 
 ## Project Structure
+
 ```
 djintheedge/
-├── index.html                           # Main entry point
-├── style.css                            # Premium CSS stylesheet
-├── package.json                         # Node config
-├── vite.config.js                       # Vite configurations
-├── spec.md                              # This specification
+├── index.html                         # Single-page entry point; static DJ-console layout
+├── style.css                          # Cyber-synthwave theme (Orbitron / Share Tech Mono)
+├── vite.config.js                     # Vite config + COOP/COEP isolation headers
+├── package.json                       # Scripts and dev deps
+├── SPEC.md                            # This document (source of truth)
+├── spec.md / plan.md / tasks.md       # Original planning docs (may overstate the AI capabilities)
+├── BrowserDJ AI - PRD ....md          # Original product/engineering blueprint (Spanish)
 ├── js/
-│   ├── app.js                           # App entry point & UI coordinator
-│   ├── ai-manager.js                    # LiteRT-LM or Semantic Fallback parser
-│   ├── audio-engine.js                  # Web Audio API engine & Elementary Audio simulation
-│   ├── sample-loader.js                 # Local directory file system access wrapper
+│   ├── app.js                         # UI orchestrator: DOM wiring, visualizer, state monitor, step-grid, telemetry
+│   ├── ai-manager.js                  # AIManager facade (re-exports the parser)
+│   ├── parser.js                      # parsePromptToDSP: the real, incremental track-array "brain"
+│   ├── audio-engine.js                # AudioEngine: owns AudioContext, renderGraph bridge, WAV recording
+│   ├── sample-loader.js               # SampleLoader: File System Access directory import
 │   └── lib/
-│       ├── elementary-renderer.js       # Elementary WebRenderer facade
-│       ├── elementary-core.js           # Elementary node definitions (el)
-│       └── litert-lm.js                 # WebGPU LiteRT-LM model loader/facade
-└── tests/                               # Test suite (if applicable)
+│       ├── elementary-renderer.js     # WebRenderer: consumes tracks[], real synth voices + lookahead scheduler + transitions
+│       └── litert-lm.js               # LiteRTLMEngine facade (fake WebGPU/Gemma load, no real model)
+└── tests/
+    └── audio-engine.test.js           # Vitest: DSL core, renderer param extraction, NLP parser
 ```
 
 ---
 
 ## Code Style
-We will write modular, clean, and well-typed JavaScript using ES6 Modules.
-Example from `audio-engine.js`:
+
+- ES6 modules, `class`-based where a component owns state; free functions for pure logic (e.g. `parsePromptToDSP`).
+- 4-space indentation, double quotes for strings, JSDoc on public methods.
+- Escape any user-derived text before injecting into the DOM (see the history feed in `app.js`).
+- User-facing strings are Spanish; identifiers, documentation, and this spec are English.
+
+Representative snippet (`js/audio-engine.js`):
+
 ```javascript
 export class AudioEngine {
     constructor() {
         this.ctx = null;
-        this.core = null;
+        this.core = null;          // simulated Elementary WebRenderer
         this.manualVolume = 0.8;
+        this.manualCutoff = 2000;
     }
 
     /**
-     * Initializes the Web Audio API context and WebRenderer node.
+     * Initializes the Web Audio API context and the WebRenderer node.
      * @returns {Promise<void>}
      */
     async initialize() {
@@ -73,42 +98,196 @@ export class AudioEngine {
         if (!this.ctx) {
             throw new Error("Web Audio API is not supported in this browser.");
         }
-        // Core initialization logic
+        this.core = new WebRenderer();
+        // ... connect renderer output to destination and recording tap
     }
 }
 ```
 
 ---
 
+# Section A - Current State (What Is Actually Built)
+
+This is the honest inventory - what a reader can verify by running the app and reading the source today.
+
+## A.1 Data Contract (the DSP JSON)
+
+A single JSON object flows from `AIManager` to `AudioEngine.renderGraph`. This is the central contract of the app.
+It is a **track-array** model: layered instrument tracks over one shared tempo and loop length.
+
+```jsonc
+{
+  "meta":  { "bpm": 124, "scale": "Am", "loop_steps": 32, "energy": 0.8 },
+  "tracks": [
+    { "id": "kick", "type": "drum",  "role": "kick",  "muted": false,
+      "pattern": [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0],   // length == loop_steps, 0/1
+      "sample_name": null },                              // custom kick sample id, or null
+    { "id": "hats", "type": "drum",  "role": "hihat", "muted": false,
+      "pattern": [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,1],
+      "sample_name": null },
+    { "id": "lead", "type": "synth", "muted": false,
+      "wave_type": "saw",            // "saw" | "cycle" | "square"
+      "filter_cutoff_hz": 1450,
+      "filter_resonance": 3.2,
+      "adsr": [0.01, 0.15, 0.7, 0.2],
+      "notes": [57,60,64,67, 64,60,57,0] }               // MIDI numbers, 0 = rest
+  ],
+  "effects": { "delay_feedback": 0.35, "reverb_mix": 0.2 },
+  "transition": null                 // or the transition block below
+}
+```
+
+Rules:
+- `type` is `"drum"` or `"synth"`. Drums have `role` (`kick` | `hihat`) and a 0/1 `pattern`. Synths have `notes` (MIDI, 0 = rest) plus `wave_type`, `filter_cutoff_hz`, `filter_resonance`, `adsr`.
+- `pattern`/`notes` length equals `meta.loop_steps` (default 32, max 64). Shorter arrays still wrap via modulo in the scheduler.
+- `id` is stable and unique; it is how prompts target a track and how the UI diffs changes for highlighting.
+- Soft cap of ~8 tracks keeps the grid readable and audio stable.
+- `effects` and `transition` stay global.
+
+Transition block (drives climax / scale morphing):
+
+```jsonc
+"transition": {
+  "active": true,
+  "current_step": 0,
+  "total_steps": 16,
+  "start_scale": "Am",  "target_scale": "Cm",
+  "start_cutoff": 2000, "target_cutoff": 800,
+  "drum_exploding": true
+}
+```
+
+**Contract caveats that must be preserved (or deliberately fixed):**
+- Tracks are addressed by `id`/`type`, not tree position - the old order-dependent `seq2` extraction contract is gone.
+- `wave_type: "square"` is accepted by the parser but rendered as a sine wave.
+- `filter_cutoff_hz` is now read per synth track to seed each voice's filter; the `manualCutoff` slider then acts as a live **master** sweep across all synth tracks, and the transition sweep animates them too.
+- `effects.reverb_mix` is parsed and displayed in the UI but there is **no reverb node** in the audio graph. It is currently inert.
+
+## A.2 Feature Inventory (works today)
+
+- **Prompt parsing (real, primary feature):** bilingual regex/keyword engine `parsePromptToDSP` (in `js/parser.js`). It is **incremental/additive**: it starts from a deep copy of the current loop state and mutates only the track(s) a prompt targets - "add a bassline" adds a track, "make the hats faster" edits only the hats, "mute the lead" flips one flag, "remove the bass" drops a track. Full-replace phrases ("start over", "reset", "new techno track") rebuild a fresh template; gibberish returns the current state unchanged. Also extracts BPM (numeric or fast/slow/`lento`), scale + regenerated melody, genre presets, wave type, cutoff, resonance, ADSR presets, drum-pattern toggles, custom-sample references, delay/reverb keywords, loop length, and multi-step transition requests.
+- **Multitrack (real):** the loop is a `tracks[]` array (drum + synth layers) over one shared tempo/loop length; tracks are independently addressable, editable, mutable, and removable, with a soft cap of ~8.
+- **Sequencer (real):** variable-length (4-64 step) 16th-note sequencer using a standard lookahead scheduler (50ms `setInterval`, 100ms schedule-ahead window, sample-accurate `AudioContext.currentTime` timestamps, suspended-context catch-up guard). It iterates the track array by `id`/`type` and skips muted tracks at schedule time (live mute takes effect on the next step, click-free).
+- **Synthesis (real):** synthetic kick (150→40Hz pitch drop), bandpassed-noise hi-hat, and per-synth-track filtered voices (oscillator → lowpass biquad → ADSR gain) spawned per step, each using its own track's wave/cutoff/resonance/ADSR.
+- **Delay effect (real):** feedback delay chain (dry/wet/delay/feedback gains).
+- **Local sample import (real):** `SampleLoader` uses the File System Access API (`showDirectoryPicker`) to import `.wav`/`.mp3`, decode to `AudioBuffer`, and register custom kicks.
+- **WAV recording/export (real):** captures stereo Float32 via `ScriptProcessorNode`, encodes a real 16-bit PCM stereo WAV, and auto-downloads it.
+- **Oscilloscope visualizer (real):** time-domain analyser rendered on canvas with a motion-blur trail and grid.
+- **Transitions / climax / scale morphing (real):** interpolates filter cutoff across the transition, transposes the melody to the target scale at the midpoint, and (when `drum_exploding`) fires accelerating kick/hat rolls into a climax.
+- **UI panels (real):** header metrics, three live sliders (master volume, master cutoff, loop length up to 64), an "AI Deck State" monitor (scale/tempo/synth/drums/FX with special Morfosis/Redoblando/Explosión states), a **per-track step-grid** (one row per track with lit cells, note names on synth rows, a moving playhead, per-track mute toggles, and a pulse-highlight on rows a prompt just changed), and a capped prompt-history feed.
+
+## A.3 Known Facades, Stubs, and Gaps
+
+Called out explicitly so nobody mistakes the facade for the feature.
+
+- **LiteRT-LM / WebGPU / Gemma is a facade.** `litert-lm.js` checks `navigator.gpu`, plays a fake 20-tick loading animation, then routes every message to `parsePromptToDSP`. There is no model file, no OPFS streaming, no GPU inference. The COOP/COEP headers exist to make a future real model possible.
+- **"DSP Load" telemetry is fake** (`Math.random()`), not a real per-block load measurement.
+- **Reverb is not implemented** in the audio graph (schema/UI only).
+- **Recording uses the deprecated `ScriptProcessorNode`** rather than an `AudioWorklet`.
+
+Previously listed here and now fixed (see the multitrack work): stateful loop accumulation is wired (`generateDSPConfig` forwards `currentState` to `parsePromptToDSP`, and incremental layering works), and the order-dependent `seq2` extraction contract is gone (the renderer consumes the track array directly; the `el.*` DSL param-extraction skin was removed).
+
+## A.4 Test Coverage (today)
+
+`tests/audio-engine.test.js` (Vitest) covers:
+- `WebRenderer.render()` applying meta/tracks/effects from the track config, and the scheduler firing per-track voices while skipping muted tracks.
+- `parsePromptToDSP`: BPM/wave/filter into the lead track, track-array schema conformance, `loop_steps` clamping to 4-64, additive add/edit/mute/remove, full-replace, gibberish-returns-unchanged, state accumulation, and null/malformed-state recovery.
+- `AIManager.generateDSPConfig` forwarding `currentState` through the pipeline.
+
+Not covered: transitions/climax audio, scheduler timing, WAV encoding, sample loading, delay FX, and all DOM/UI logic (step-grid, playhead, mute toggles are verified manually / via the headless integration run).
+
+---
+
+# Section B - The Bigger Vision (Roadmap)
+
+The forward-looking direction, organized into four tracks. Each item lists concrete, testable success criteria so it can be specced and built incrementally. Nothing here is committed until scheduled into `plan.md`/`tasks.md`.
+
+## Track 1 - Real On-Device LLM
+
+Replace the facade with genuine local inference while keeping the NLP parser as an always-available fallback.
+- Ship the WebGPU LiteRT-LM / Gemma path: stream the model binary to OPFS on first run, restore instantly on later runs, and use constrained JSON decoding so the model can only emit the DSP contract.
+- Preserve the abort-on-new-prompt concurrency model (already scaffolded via `AbortController`).
+- **Success:** with a supported GPU, a prompt produces valid schema-conforming JSON from the real model at TTFT < 400ms; with no GPU or no model, the parser fallback is transparent and the app is fully functional.
+
+## Track 2 - Richer Audio Engine
+
+Deepen synthesis and move DSP off the main thread.
+- Implement the missing **reverb** so `reverb_mix` becomes audible; add sidechain/ducking.
+- Add polyphony and more oscillator/wave types (true `square`, FM, wavetable).
+- Migrate the real-time graph and recording tap to an **AudioWorklet**, retiring `ScriptProcessorNode`.
+- Optionally make the Elementary DSL a real signal compiler rather than a param-extraction skin, removing the order-dependent `seq2` contract.
+- **Success:** every parameter in the DSP contract is audibly honored; no audio glitches under load; DSP runs in an isolated worklet thread.
+
+## Track 3 - Performance UX
+
+Turn the composer into a live-DJ instrument.
+- Beat-matched transitions between loops, MIDI and keyboard control, and a multi-deck mixer with a crossfader.
+- Waveform scrubbing and cueing for imported samples.
+- **Success:** a performer can beat-match and crossfade two decks live, and control core parameters from a MIDI device without touching the mouse.
+
+## Track 4 - Shareability & Persistence
+
+Make sessions durable and portable.
+- Save/load sessions locally, a preset library, shareable set URLs that encode the DSP contract, and stems export alongside the master WAV.
+- Package as an installable PWA for true offline use.
+- **Success:** a user saves a set, reopens it days later offline, shares a URL that reproduces the exact loop, and installs the app to their home screen.
+
+## Prerequisite Fixes (high-value, independent of the tracks)
+
+- **Wire stateful loop accumulation** so `activeLoopState` actually reaches `parsePromptToDSP` and incremental layering works as intended.
+- Make `filter_cutoff_hz` from the graph authoritative, or explicitly document manual-override precedence.
+- Replace fake telemetry with a real per-block DSP-load metric, or remove the readout.
+
+---
+
 ## Testing Strategy
-1. **Manual Visual and Audio Verification**: Load the application in a modern browser (Chrome/Edge) with WebGPU and Web Audio API enabled.
-2. **Console Verification**: Ensure no Web Audio thread overloads, memory leaks, or console errors are printed.
-3. **Mock Validation**: Verify the semantic NLP parser correctly converts a variety of natural language inputs into valid JSON contracts conforming to Section 6 of the PRD.
+
+- **Framework:** Vitest (`npm test` for CI, `npx vitest` for watch).
+- **Unit (primary automated layer):** the pure logic - `parsePromptToDSP` (prompt → contract), the DSL `Node` builder, and `WebRenderer` param extraction. Every new parser rule ships with a test asserting the resulting JSON.
+- **Contract tests:** assert that parser output always conforms to the DSP JSON schema in A.1, including on gibberish input (must return a valid default graph, never throw).
+- **Manual E2E verification** in a modern browser (Chrome/Edge): load the app, confirm no console errors or audio-thread overloads, play a groove, submit several prompts, load a sample folder, run a transition, and record + play back the exported WAV.
+- **Coverage direction:** grow automated coverage into transitions, scheduler timing, and WAV encoding; keep DOM/visual checks manual for now.
+- When fixing a bug, first reproduce it end-to-end as a user would, then add a failing test, then fix.
 
 ---
 
 ## Boundaries
-- **Always**:
-  - Keep audio synthesis completely isolated from main-thread computational blocks.
-  - Implement a fallback DSP configuration if the AI returns malformed JSON.
-  - Use absolute absolute paths or relative standard paths for files.
-- **Ask first**:
-  - Adding complex npm packages that alter the "Pure Web" runtime architecture.
-- **Never**:
-  - Allow audio glitches (clicks/pops) due to abrupt node swaps.
-  - Hardcode API keys or require external internet access for the core sequencer/audio loop.
+
+**Always:**
+- Keep audio synthesis isolated from heavy main-thread computation; never block the audio path on parsing.
+- On malformed or missing AI output, fall back to a valid default DSP graph rather than throwing.
+- Escape user-derived text before inserting it into the DOM.
+- Run `npm test` before committing; add tests for new parser rules and bug fixes.
+- Keep the app fully functional offline with no API keys and no network dependency for the core loop.
+
+**Ask first:**
+- Adding any runtime dependency or npm package that changes the "pure web" architecture.
+- Changing the DSP JSON contract (A.1) - it is shared between the parser and the engine.
+- Persistence-layer or CI-config changes.
+
+**Never:**
+- Introduce audio glitches (clicks/pops) via abrupt node swaps.
+- Hardcode secrets/API keys or require internet access for the core sequencer/audio loop.
+- Present a facade as a real capability in user-facing copy without labeling it or actually implementing it.
+- Remove or skip failing tests without approval.
 
 ---
 
-## Success Criteria
-1. **Visual WOW Factor**: The user interface uses professional cyber-synthwave aesthetics (dark slate, neon accents, neon glow, custom sliders, responsive spectrum analyzer canvas).
-2. **Instant Response**: Text prompts are translated to audio changes in < 400ms (either via the fallback parser or active WebGPU session).
-3. **No Pops/Clicks**: Audio transitions smoothly when the graph changes.
-4. **Recording Export**: A user records a mix, and downloading it outputs a valid WAV file.
-5. **Sample Import**: Local audio directories can be imported using `showDirectoryPicker()` and mapped into the sequencer.
+## Success Criteria (system-level)
+
+1. **Instant response:** a prompt changes the audio in < 400ms via parser or (future) local model.
+2. **No pops/clicks:** the audio graph transitions smoothly, including during climax/transition sequences.
+3. **Offline-first:** the full core experience works with no network and no keys.
+4. **Recording export:** recording a mix produces a valid, playable 16-bit PCM WAV download.
+5. **Sample import:** a local audio directory imports via `showDirectoryPicker()` and its samples are triggerable in the sequencer.
+6. **Visual WOW:** the cyber-synthwave UI with a real-time oscilloscope and live deck-state monitor.
+7. **Honest capability:** shipped features are real; facades (LLM, reverb, telemetry) are either implemented or clearly labeled until they are.
 
 ---
 
 ## Open Questions
-1. **Elementary Audio libraries**: Since `elementary-renderer.js` and `elementary-core.js` are proprietary libraries, we will build a highly robust, pure Web Audio API-based implementation of the `el` DSL (oscillators, noise, ADSR envelope, SVF filter, delay, sequencer) directly within our `js/lib/` folder. This guarantees that the code runs out-of-the-box and offline without licensing or missing-dependency errors. Is this approach acceptable?
-2. **Local Model File**: Gemma 4 (LiteRT) files are large. We will implement both the WebGPU-based model loader and a smart regex/semantic natural language parser fallback. The fallback will parse natural language parameters (e.g. "bpm", "lead", "filter") locally in microseconds. Should the fallback be enabled automatically if WebGPU or the model file is not available?
+
+1. **Real LLM priority:** is shipping genuine WebGPU/Gemma inference (Track 1) the top near-term goal, or is deepening the audio engine (Track 2) more valuable first?
+2. **Language:** should `SPEC.md` and future docs stay English while the UI stays Spanish, or converge on one language?
+3. **Facade cleanup:** should the fake telemetry and unlabeled facades be removed/relabeled now, or left until their real implementations land?
+4. **DSL direction:** is it worth making the Elementary DSL a true signal compiler (Track 2), or is the current param-extraction skin acceptable long-term?

@@ -1,10 +1,8 @@
 /**
  * Simulated WebRenderer for Elementary Audio.
- * Translates the virtual DSP graph into real-time Web Audio API node states
- * and runs a highly precise step sequencer scheduling loop.
+ * Consumes the track-array DSP contract directly (tracks addressed by id/type)
+ * and runs a highly precise step-sequencer scheduling loop over real Web Audio nodes.
  */
-
-import { Node } from './elementary-core.js';
 
 export class WebRenderer {
     constructor() {
@@ -14,19 +12,17 @@ export class WebRenderer {
         // Virtual File System for local sample buffers
         this.samples = {};
 
-        // DSP States parsed from the virtual graph
+        // DSP States driven by the track-array contract
         this.bpm = 120;
-        this.kickPattern = Array(16).fill(0);
-        this.hihatPattern = Array(16).fill(0);
-        this.synthSequence = Array(16).fill(0);
-        this.synthWaveType = 'saw';
-        this.filterResonance = 1.0;
+        this.tracks = [];          // array of drum/synth track objects
         this.delayFeedback = 0.3;
-        this.useCustomSample = false;
-        this.sampleName = '';
-        this.adsr = [0.01, 0.15, 0.7, 0.2]; // default A, D, S, R
-        this.loopLength = 16; // default loop length in steps
-        this.transition = null; // tracks progress-based audio parameter morphing
+        this.loopLength = 32;      // default loop length in steps
+        this.transition = null;    // tracks progress-based audio parameter morphing
+
+        // Per-synth-track filter node cache (keyed by track id) for live cutoff updates
+        this.synthFilters = {};
+        // Most-recent synth filter node; the manual cutoff slider drives this (see T6).
+        this.synthFilter = null;
 
         // Web Audio Nodes
         this.analyser = null;
@@ -104,100 +100,30 @@ export class WebRenderer {
     }
 
     /**
-     * Parses the virtual DSP tree to dynamically adjust synthesizer, sequencer, and FX configurations.
+     * Applies a track-array DSP config to the live scheduler state.
+     * Tracks are addressed by id/type - there is no positional node contract.
+     * @param {object} config the track-array DSP contract
      */
-    render(leftGraph, rightGraph) {
-        if (!leftGraph) return;
+    render(config) {
+        if (!config) return;
 
-        // 1. Walk the tree to find interesting DSP parameter settings
-        const metroNodes = this.findNodesByType(leftGraph, 'metro');
-        if (metroNodes.length > 0) {
-            const parsedBPM = metroNodes[0].props.bpm;
-            if (typeof parsedBPM === 'number' && parsedBPM > 0) {
-                this.bpm = parsedBPM;
-            }
+        if (config.meta && typeof config.meta.bpm === 'number' && config.meta.bpm > 0) {
+            this.bpm = config.meta.bpm;
+        }
+        if (config.meta && typeof config.meta.loop_steps === 'number') {
+            this.loopLength = config.meta.loop_steps;
         }
 
-        // Find all seq2 nodes to extract patterns
-        const seqNodes = this.findNodesByType(leftGraph, 'seq2');
-        if (seqNodes.length >= 3) {
-            // Match order of creation in audio-engine: kickSeq, hihatSeq, noteSeq
-            this.kickPattern = seqNodes[0].props.seq || Array(16).fill(0);
-            this.hihatPattern = seqNodes[1].props.seq || Array(16).fill(0);
-            this.synthSequence = seqNodes[2].props.seq || Array(16).fill(0);
-        } else if (seqNodes.length === 2) {
-            // Fallback for drums only
-            this.kickPattern = seqNodes[0].props.seq || Array(16).fill(0);
-            this.hihatPattern = seqNodes[1].props.seq || Array(16).fill(0);
-        }
+        // Swap in the new track array (already validated/normalized by the parser).
+        this.tracks = Array.isArray(config.tracks) ? config.tracks : [];
 
-        // Extract custom kick sample flags
-        const sampleFlashNodes = this.findNodesByType(leftGraph, 'sampleFlash');
-        if (sampleFlashNodes.length > 0) {
-            this.useCustomSample = true;
-            this.sampleName = sampleFlashNodes[0].props.path || '';
-        } else {
-            this.useCustomSample = false;
-        }
-
-        // Extract ADSR and Filter resonance
-        const adsrNodes = this.findNodesByType(leftGraph, 'adsr');
-        if (adsrNodes.length > 0) {
-            const props = adsrNodes[0].props;
-            if (props.a !== undefined) {
-                this.adsr = [props.a, props.d, props.s, props.r];
-            }
-        }
-
-        const svfNodes = this.findNodesByType(leftGraph, 'svf');
-        if (svfNodes.length > 0) {
-            const props = svfNodes[0].props;
-            if (props.res !== undefined) {
-                this.filterResonance = props.res;
-            }
-        }
-
-        // Extract Synth Wave Type (saw vs. cycle/sine)
-        const sawNodes = this.findNodesByType(leftGraph, 'saw');
-        const cycleNodes = this.findNodesByType(leftGraph, 'cycle');
-        if (sawNodes.length > 0) {
-            this.synthWaveType = 'saw';
-        } else if (cycleNodes.length > 0) {
-            this.synthWaveType = 'cycle';
-        }
-
-        // Extract Delay feedback
-        const delayNodes = this.findNodesByType(leftGraph, 'delay');
-        if (delayNodes.length > 0) {
-            const feedbackChild = delayNodes[0].children[2];
-            if (feedbackChild && feedbackChild.type === 'const') {
-                this.delayFeedback = feedbackChild.props.value;
-            } else if (typeof feedbackChild === 'number') {
-                this.delayFeedback = feedbackChild;
-            }
-            // Update delay feedback instantly
+        // Global delay feedback.
+        if (config.effects && typeof config.effects.delay_feedback === 'number') {
+            this.delayFeedback = config.effects.delay_feedback;
             if (this.delayFeedbackNode) {
                 this.delayFeedbackNode.gain.setValueAtTime(this.delayFeedback, this.ctx.currentTime);
             }
         }
-    }
-
-    /**
-     * Helper to recursively locate specific nodes by type.
-     */
-    findNodesByType(node, type, list = []) {
-        if (!node) return list;
-        if (node.type === type) {
-            list.push(node);
-        }
-        if (node.children) {
-            for (const child of node.children) {
-                if (child instanceof Node) {
-                    this.findNodesByType(child, type, list);
-                }
-            }
-        }
-        return list;
     }
 
     /**
@@ -248,72 +174,66 @@ export class WebRenderer {
     scheduleStep(step, time) {
         const stepDuration = 60.0 / this.bpm / 4.0;
 
-        let kickActive = this.kickPattern.length > 0 ? this.kickPattern[step % this.kickPattern.length] : 0;
-        let hihatActive = this.hihatPattern.length > 0 ? this.hihatPattern[step % this.hihatPattern.length] : 0;
-        let midiNote = this.synthSequence.length > 0 ? this.synthSequence[step % this.synthSequence.length] : 0;
-
-        // Apply Progressive Transitions (e.g. sweeps and explosions)
+        // --- Progressive transition state (cutoff sweep, scale morph, climax) ---
+        let morphSequence = null;       // overrides synth notes when a key change fires
+        let explosion = null;           // { kickForce, hihatForce } drum climax overrides
         if (this.transition && this.transition.active) {
             this.transition.current_step++;
             const t = Math.min(1.0, this.transition.current_step / this.transition.total_steps);
 
-            // 1. Interpolate Biquad Filter Cutoff Frequency
+            // 1. Interpolate cutoff on every live synth filter node.
             const currentCutoff = this.transition.start_cutoff + t * (this.transition.target_cutoff - this.transition.start_cutoff);
-            if (this.synthFilter) {
-                this.synthFilter.frequency.setValueAtTime(currentCutoff, time);
+            for (const id in this.synthFilters) {
+                this.synthFilters[id].frequency.setValueAtTime(currentCutoff, time);
             }
 
-            // 2. Scale Shift / Key Transposition (trigger at 50% progress)
+            // 2. Scale shift / key transposition (trigger at 50% progress).
             if (t >= 0.5 && this.transition.start_scale !== this.transition.target_scale) {
                 const targetKey = this.transition.target_scale;
-                const newSequence = this.generateScaleMelody(targetKey.replace("m", ""), !targetKey.endsWith("m"));
-                midiNote = newSequence[step % newSequence.length];
+                morphSequence = this.generateScaleMelody(targetKey.replace("m", ""), targetKey.endsWith("m"));
             }
 
-            // 3. Drum Exploding Climax Build (Accelerating roll on last steps)
+            // 3. Drum exploding climax build (accelerating roll on the last steps).
             if (this.transition.drum_exploding) {
                 const stepsRemaining = this.transition.total_steps - this.transition.current_step;
                 if (stepsRemaining < 64) {
-                    this.synthWaveType = 'saw'; // Force saw oscillator for a bright, energetic build
-
-                    if (stepsRemaining < 8) {
-                        // Exploding climax trigger
-                        kickActive = 1;
-                        hihatActive = 1;
-                    } else if (stepsRemaining < 24) {
-                        // Accelerating kick/hat roll
-                        kickActive = 1;
-                        hihatActive = (step % 2 === 0) ? 1 : 0;
-                    } else if (stepsRemaining < 48) {
-                        // Double kick speed
-                        kickActive = (step % 2 === 0) ? 1 : 0;
-                    }
+                    if (stepsRemaining < 8) explosion = { kick: 1, hihat: 1 };
+                    else if (stepsRemaining < 24) explosion = { kick: 1, hihat: (step % 2 === 0) ? 1 : 0 };
+                    else if (stepsRemaining < 48) explosion = { kick: (step % 2 === 0) ? 1 : 0, hihat: null };
                 }
             }
 
-            // Deactivate transition on completion
-            if (t >= 1.0) {
-                this.transition.active = false;
+            if (t >= 1.0) this.transition.active = false;
+        }
+
+        // --- Iterate every track by id/type (no positional contract) ---
+        for (const track of this.tracks) {
+            if (track.muted) continue;
+
+            if (track.type === "drum") {
+                const pattern = track.pattern || [];
+                let active = pattern.length > 0 ? pattern[step % pattern.length] : 0;
+
+                // Apply climax overrides by role.
+                if (explosion) {
+                    if (track.role === "kick" && explosion.kick !== null) active = explosion.kick;
+                    if (track.role === "hihat" && explosion.hihat !== null) active = explosion.hihat;
+                }
+                if (active !== 1) continue;
+
+                if (track.role === "hihat") {
+                    this.playSyntheticHihat(time);
+                } else if (track.sample_name && this.samples[track.sample_name]) {
+                    this.playSample(track.sample_name, time);
+                } else {
+                    this.playSyntheticKick(time);
+                }
+            } else if (track.type === "synth") {
+                const notes = track.notes || [];
+                let midiNote = notes.length > 0 ? notes[step % notes.length] : 0;
+                if (morphSequence) midiNote = morphSequence[step % morphSequence.length];
+                if (midiNote > 0) this.playSynthNote(midiNote, time, stepDuration, track);
             }
-        }
-
-        // 1. Kick Drum
-        if (kickActive === 1) {
-            if (this.useCustomSample && this.samples[this.sampleName]) {
-                this.playSample(this.sampleName, time);
-            } else {
-                this.playSyntheticKick(time);
-            }
-        }
-
-        // 2. Hi-hat
-        if (hihatActive === 1) {
-            this.playSyntheticHihat(time);
-        }
-
-        // 3. Synthesizer Lead
-        if (midiNote > 0) {
-            this.playSynthNote(midiNote, time, stepDuration);
         }
     }
 
@@ -369,11 +289,20 @@ export class WebRenderer {
     }
 
     /**
-     * Synthesize lead synth note.
+     * Synthesize a synth note for a given track.
+     * @param {number} midiNote
+     * @param {number} time
+     * @param {number} duration
+     * @param {object} track the synth track (wave_type, filter_cutoff_hz, filter_resonance, adsr)
      */
-    playSynthNote(midiNote, time, duration) {
+    playSynthNote(midiNote, time, duration, track = {}) {
+        const waveType = track.wave_type || 'saw';
+        const resonance = typeof track.filter_resonance === 'number' ? track.filter_resonance : 1.0;
+        const adsr = Array.isArray(track.adsr) ? track.adsr : [0.01, 0.15, 0.7, 0.2];
+        const trackId = track.id || 'lead';
+
         const osc = this.ctx.createOscillator();
-        osc.type = this.synthWaveType === 'saw' ? 'sawtooth' : 'sine';
+        osc.type = waveType === 'saw' ? 'sawtooth' : 'sine';
 
         // Frequency mapping
         const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -381,13 +310,17 @@ export class WebRenderer {
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        
-        // Read manual/dynamic cutoff setting
-        const currentCutoff = this.synthFilter ? this.synthFilter.frequency.value : 2000;
+
+        // Per-track cutoff: reuse the track's last cached filter value (so live
+        // slider/transition updates persist), else fall back to the track param.
+        const cached = this.synthFilters[trackId];
+        const currentCutoff = cached ? cached.frequency.value
+            : (typeof track.filter_cutoff_hz === 'number' ? track.filter_cutoff_hz : 2000);
         filter.frequency.setValueAtTime(currentCutoff, time);
-        filter.Q.setValueAtTime(this.filterResonance, time);
-        
-        // Cache node for manual updates
+        filter.Q.setValueAtTime(resonance, time);
+
+        // Cache node for live cutoff updates (per track + most-recent for the slider).
+        this.synthFilters[trackId] = filter;
         this.synthFilter = filter;
 
         const gain = this.ctx.createGain();
@@ -398,10 +331,10 @@ export class WebRenderer {
         gain.connect(this.delayNode);
 
         // Apply ADSR Envelope
-        let a = this.adsr[0];
-        let d = this.adsr[1];
-        const s = this.adsr[2];
-        const r = this.adsr[3];
+        let a = adsr[0];
+        let d = adsr[1];
+        const s = adsr[2];
+        const r = adsr[3];
         const gateDuration = duration * 0.8; // let notes release cleanly
 
         // Adjust attack and decay if they exceed gate duration to prevent Web Audio overlapping errors
