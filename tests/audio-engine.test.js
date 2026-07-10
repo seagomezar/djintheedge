@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WebRenderer } from '../js/lib/elementary-renderer.js';
 
 describe('WebRenderer simulation', () => {
@@ -178,6 +178,94 @@ describe('NLP Semantic Parser (track-array contract)', () => {
         expect(Array.isArray(fromNull.tracks)).toBe(true);
         const fromFlat = parsePromptToDSP("add delay", { meta: { bpm: 100 }, dsp_graph: {} });
         expect(Array.isArray(fromFlat.tracks)).toBe(true);
+    });
+});
+
+describe('WebRenderer reverb chain', () => {
+    let renderer;
+
+    // A parameter stub exposing the automation methods the renderer calls, with
+    // spies so assertions can inspect scheduled values.
+    const makeParam = () => ({
+        value: 0,
+        setValueAtTime: vi.fn(function (v) { this.value = v; return this; }),
+        setTargetAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+    });
+
+    // A generic AudioNode stub covering every node the reverb/delay chain wires.
+    const makeNode = () => ({
+        connect: vi.fn(),
+        gain: makeParam(),
+        frequency: makeParam(),
+        delayTime: makeParam(),
+        Q: makeParam(),
+        buffer: null,
+    });
+
+    // Full fake AudioContext that drives the real initialize() wiring.
+    const makeFakeCtx = () => ({
+        sampleRate: 100,
+        currentTime: 0,
+        createGain: vi.fn(() => makeNode()),
+        createAnalyser: vi.fn(() => makeNode()),
+        createDelay: vi.fn(() => makeNode()),
+        createConvolver: vi.fn(() => makeNode()),
+        createBuffer: vi.fn((ch, len, sr) => ({
+            numberOfChannels: ch,
+            length: len,
+            sampleRate: sr,
+            _data: Array.from({ length: ch }, () => new Float32Array(len)),
+            getChannelData(i) { return this._data[i]; },
+        })),
+    });
+
+    beforeEach(async () => {
+        renderer = new WebRenderer();
+        const ctx = makeFakeCtx();
+        await renderer.initialize(ctx);
+        // Stop the real setInterval clock so it never ticks during assertions.
+        clearInterval(renderer.schedulerIntervalId);
+    });
+
+    it('builds and installs the reverb impulse response on the convolver', () => {
+        expect(renderer.reverbNode).toBeTruthy();
+        expect(renderer.reverbNode.buffer).toBeTruthy();
+        expect(renderer.reverbWetNode).toBeTruthy();
+        expect(renderer.reverbSendNode).toBeTruthy();
+    });
+
+    it('ramps the wet-return gain to config.effects.reverb_mix via setTargetAtTime', () => {
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 },
+            tracks: [],
+            effects: { delay_feedback: 0.3, reverb_mix: 0.4 },
+        });
+        expect(renderer.reverbWetNode.gain.setTargetAtTime).toHaveBeenCalled();
+        const [value] = renderer.reverbWetNode.gain.setTargetAtTime.mock.calls[0];
+        expect(value).toBe(0.4);
+        expect(renderer.reverbMix).toBe(0.4);
+    });
+
+    it('ramps the wet-return gain to 0 when reverb_mix is 0 (fully dry)', () => {
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 },
+            tracks: [],
+            effects: { delay_feedback: 0.3, reverb_mix: 0 },
+        });
+        expect(renderer.reverbWetNode.gain.setTargetAtTime).toHaveBeenCalled();
+        const [value] = renderer.reverbWetNode.gain.setTargetAtTime.mock.calls[0];
+        expect(value).toBe(0);
+        expect(renderer.reverbMix).toBe(0);
+    });
+
+    it('connectVoice routes each voice to the dry, delay, and reverb sends', () => {
+        const voiceGain = { connect: vi.fn() };
+        renderer.connectVoice(voiceGain);
+        expect(voiceGain.connect).toHaveBeenCalledWith(renderer.delayDryNode);
+        expect(voiceGain.connect).toHaveBeenCalledWith(renderer.delayNode);
+        expect(voiceGain.connect).toHaveBeenCalledWith(renderer.reverbSendNode);
     });
 });
 

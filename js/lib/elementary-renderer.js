@@ -4,11 +4,13 @@
  * and runs a highly precise step-sequencer scheduling loop over real Web Audio nodes.
  */
 
+import { buildImpulseResponse } from './reverb-ir.js';
+
 export class WebRenderer {
     constructor() {
         this.ctx = null;
         this.outputNode = null;
-        
+
         // Virtual File System for local sample buffers
         this.samples = {};
 
@@ -16,6 +18,7 @@ export class WebRenderer {
         this.bpm = 120;
         this.tracks = [];          // array of drum/synth track objects
         this.delayFeedback = 0.3;
+        this.reverbMix = 0.15;     // wet-send level for the reverb return
         this.loopLength = 32;      // default loop length in steps
         this.transition = null;    // tracks progress-based audio parameter morphing
 
@@ -31,6 +34,11 @@ export class WebRenderer {
         this.delayDryNode = null;
         this.delayWetNode = null;
         this.synthFilter = null;
+
+        // Reverb send/return chain (convolver fed by a shared send bus).
+        this.reverbSendNode = null;
+        this.reverbNode = null;
+        this.reverbWetNode = null;
 
         // Sequencer Clock state
         this.schedulerIntervalId = null;
@@ -85,11 +93,39 @@ export class WebRenderer {
         this.delayNode.delayTime.setValueAtTime(0.3, this.ctx.currentTime); // 300ms delay
         this.delayFeedbackNode.gain.setValueAtTime(0.3, this.ctx.currentTime);
 
+        // Create Reverb FX chain: a shared send bus feeds a convolver whose wet
+        // output is summed additively into the main output (and thus the
+        // analyser + recording tap). The impulse response is generated in-code.
+        this.reverbSendNode = this.ctx.createGain();
+        this.reverbNode = this.ctx.createConvolver();
+        this.reverbWetNode = this.ctx.createGain();
+        this.reverbNode.buffer = buildImpulseResponse(this.ctx);
+
+        this.reverbSendNode.connect(this.reverbNode);
+        this.reverbNode.connect(this.reverbWetNode);
+        this.reverbWetNode.connect(this.outputNode);
+
+        // Send bus passes signal through at unity; the wet return gain is the
+        // reverb mix amount.
+        this.reverbSendNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        this.reverbWetNode.gain.setValueAtTime(this.reverbMix, this.ctx.currentTime);
+
         // Start scheduling clock
         this.nextStepTime = this.ctx.currentTime + 0.1;
         this.startScheduler();
 
         return this.outputNode;
+    }
+
+    /**
+     * Routes a voice's output gain to all effect sends: dry, delay, and reverb.
+     * Every voice-spawn site uses this so a new voice can never miss a send.
+     * @param {AudioNode} voiceGain the per-voice output gain node
+     */
+    connectVoice(voiceGain) {
+        voiceGain.connect(this.delayDryNode);
+        voiceGain.connect(this.delayNode);
+        if (this.reverbSendNode) voiceGain.connect(this.reverbSendNode);
     }
 
     /**
@@ -122,6 +158,15 @@ export class WebRenderer {
             this.delayFeedback = config.effects.delay_feedback;
             if (this.delayFeedbackNode) {
                 this.delayFeedbackNode.gain.setValueAtTime(this.delayFeedback, this.ctx.currentTime);
+            }
+        }
+
+        // Global reverb mix (wet-return level). Ramp with setTargetAtTime so
+        // live prompt changes are click-free.
+        if (config.effects && typeof config.effects.reverb_mix === 'number') {
+            this.reverbMix = config.effects.reverb_mix;
+            if (this.reverbWetNode) {
+                this.reverbWetNode.gain.setTargetAtTime(this.reverbMix, this.ctx.currentTime, 0.02);
             }
         }
     }
@@ -245,8 +290,7 @@ export class WebRenderer {
         const gain = this.ctx.createGain();
 
         osc.connect(gain);
-        gain.connect(this.delayDryNode);
-        gain.connect(this.delayNode);
+        this.connectVoice(gain);
 
         // Pitch envelope
         osc.frequency.setValueAtTime(150, time);
@@ -278,8 +322,7 @@ export class WebRenderer {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(this.delayDryNode);
-        gain.connect(this.delayNode);
+        this.connectVoice(gain);
 
         gain.gain.setValueAtTime(0.25, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
@@ -327,8 +370,7 @@ export class WebRenderer {
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(this.delayDryNode);
-        gain.connect(this.delayNode);
+        this.connectVoice(gain);
 
         // Apply ADSR Envelope
         let a = adsr[0];
@@ -371,8 +413,7 @@ export class WebRenderer {
 
         const gain = this.ctx.createGain();
         source.connect(gain);
-        gain.connect(this.delayDryNode);
-        gain.connect(this.delayNode);
+        this.connectVoice(gain);
 
         gain.gain.setValueAtTime(0.9, time);
 

@@ -161,7 +161,7 @@ Transition block (drives climax / scale morphing):
 - Tracks are addressed by `id`/`type`, not tree position - the old order-dependent `seq2` extraction contract is gone.
 - `wave_type: "square"` is accepted by the parser but rendered as a sine wave.
 - `filter_cutoff_hz` is now read per synth track to seed each voice's filter; the `manualCutoff` slider then acts as a live **master** sweep across all synth tracks, and the transition sweep animates them too.
-- `effects.reverb_mix` is parsed and displayed in the UI but there is **no reverb node** in the audio graph. It is currently inert.
+- `effects.reverb_mix` drives a real convolution reverb send (a `ConvolverNode` with an in-code impulse response); it is ramped click-free on live changes and is included in the recorded WAV. See [`specs/reverb.md`](specs/reverb.md).
 
 ## A.2 Feature Inventory (works today)
 
@@ -170,6 +170,7 @@ Transition block (drives climax / scale morphing):
 - **Sequencer (real):** variable-length (4-64 step) 16th-note sequencer using a standard lookahead scheduler (50ms `setInterval`, 100ms schedule-ahead window, sample-accurate `AudioContext.currentTime` timestamps, suspended-context catch-up guard). It iterates the track array by `id`/`type` and skips muted tracks at schedule time (live mute takes effect on the next step, click-free).
 - **Synthesis (real):** synthetic kick (150→40Hz pitch drop), bandpassed-noise hi-hat, and per-synth-track filtered voices (oscillator → lowpass biquad → ADSR gain) spawned per step, each using its own track's wave/cutoff/resonance/ADSR.
 - **Delay effect (real):** feedback delay chain (dry/wet/delay/feedback gains).
+- **Reverb effect (real):** a global convolution reverb send (`ConvolverNode`) driven by `effects.reverb_mix`. The impulse response is generated in-code (decaying filtered noise via `js/lib/reverb-ir.js`) so no audio asset ships; the wet return is ramped click-free (`setTargetAtTime`) and sums into the output before the recording tap, so reverb is both visualized and captured in the exported WAV.
 - **Local sample import (real):** `SampleLoader` uses the File System Access API (`showDirectoryPicker`) to import `.wav`/`.mp3`, decode to `AudioBuffer`, and register custom kicks.
 - **WAV recording/export (real):** captures stereo Float32 via `ScriptProcessorNode`, encodes a real 16-bit PCM stereo WAV, and auto-downloads it.
 - **Oscilloscope visualizer (real):** time-domain analyser rendered on canvas with a motion-blur trail and grid.
@@ -182,7 +183,6 @@ Called out explicitly so nobody mistakes the facade for the feature.
 
 - **LiteRT-LM / WebGPU / Gemma - real integration, model not yet bundled.** `litert-lm.js` is now a genuine MediaPipe (`@mediapipe/tasks-genai`) WebGPU wrapper with real OPFS model caching (`model-loader.js`), versioned prompt engineering (`prompt-template.js`), schema-validated output (`dsp-schema.js`), and a validate→repair→parser-fallback ladder in `ai-manager.js`. It goes live once the `@mediapipe/tasks-genai` dependency and a Gemma model binary are provisioned (Gate B1); until then the dynamic import fails gracefully and the app runs transparently on `parsePromptToDSP`, with the UI honestly labeled "AI OFFLINE (Parser)". The GPU-machine inference path is wired but not yet verified end-to-end. See [`specs/on-device-llm.md`](specs/on-device-llm.md) and its plan.
 - **"DSP Load" telemetry is fake** (`Math.random()`), not a real per-block load measurement.
-- **Reverb is not implemented** in the audio graph (schema/UI only).
 - **Recording uses the deprecated `ScriptProcessorNode`** rather than an `AudioWorklet`.
 
 Previously listed here and now fixed (see the multitrack work): stateful loop accumulation is wired (`generateDSPConfig` forwards `currentState` to `parsePromptToDSP`, and incremental layering works), and the order-dependent `seq2` extraction contract is gone (the renderer consumes the track array directly; the `el.*` DSL param-extraction skin was removed).
@@ -212,7 +212,7 @@ Replace the facade with genuine local inference while keeping the NLP parser as 
 ## Track 2 - Richer Audio Engine
 
 Deepen synthesis and move DSP off the main thread.
-- Implement the missing **reverb** so `reverb_mix` becomes audible; add sidechain/ducking.
+- Reverb is now audible (done - see A.2); next, add sidechain/ducking and optional convolution-IR file loading.
 - Add polyphony and more oscillator/wave types (true `square`, FM, wavetable).
 - Migrate the real-time graph and recording tap to an **AudioWorklet**, retiring `ScriptProcessorNode`.
 - Optionally make the Elementary DSL a real signal compiler rather than a param-extraction skin, removing the order-dependent `seq2` contract.
@@ -281,7 +281,7 @@ Make sessions durable and portable.
 4. **Recording export:** recording a mix produces a valid, playable 16-bit PCM WAV download.
 5. **Sample import:** a local audio directory imports via `showDirectoryPicker()` and its samples are triggerable in the sequencer.
 6. **Visual WOW:** the cyber-synthwave UI with a real-time oscilloscope and live deck-state monitor.
-7. **Honest capability:** shipped features are real; facades (LLM, reverb, telemetry) are either implemented or clearly labeled until they are.
+7. **Honest capability:** shipped features are real; remaining facades (fake DSP-load telemetry) are either implemented or clearly labeled until they are.
 
 ---
 
