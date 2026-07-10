@@ -189,7 +189,7 @@ export function parsePromptToDSP(prompt, currentState = null) {
     }
     if (/\b(reverb|espacio|catedral)\b/.test(text)) {
         if (/\b(no reverb|sin reverb)\b/.test(text)) config.effects.reverb_mix = 0.0;
-        else if (/\b(mucha|alta|cathedral)\b/.test(text)) config.effects.reverb_mix = 0.45;
+        else if (/\b(mucha|alta|cathedral|catedral)\b/.test(text)) config.effects.reverb_mix = 0.45;
         else config.effects.reverb_mix = 0.25;
         touched = true;
     }

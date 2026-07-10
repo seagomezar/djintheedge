@@ -172,6 +172,17 @@ describe('NLP Semantic Parser (track-array contract)', () => {
         expect(lead(next).filter_cutoff_hz).toBe(600);
     });
 
+    it('reverb keywords set reverb_mix (Spanish "catedral" == high, like "cathedral")', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        expect(parsePromptToDSP("add reverb").effects.reverb_mix).toBe(0.25);
+        expect(parsePromptToDSP("mucha reverb").effects.reverb_mix).toBe(0.45);
+        expect(parsePromptToDSP("reverb cathedral").effects.reverb_mix).toBe(0.45);
+        // Regression: the Spanish "catedral" must map to the same high level as
+        // its English counterpart (previously fell through to the 0.25 default).
+        expect(parsePromptToDSP("reverb catedral").effects.reverb_mix).toBe(0.45);
+        expect(parsePromptToDSP("sin reverb").effects.reverb_mix).toBe(0.0);
+    });
+
     it('null/malformed currentState yields a valid default template', async () => {
         const { parsePromptToDSP } = await import('../js/ai-manager.js');
         const fromNull = parsePromptToDSP("add delay", null);

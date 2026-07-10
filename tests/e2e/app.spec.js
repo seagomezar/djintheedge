@@ -98,7 +98,7 @@ test('BrowserDJ AI boots via parser fallback and stays functional', async ({ pag
   //    manual check (headless has no speakers), but the wiring must run without
   //    errors and the deck-state must reflect the change.
   const stateEffects = page.locator('#state-effects');
-  await promptInput.fill('mucha reverb');
+  await promptInput.fill('reverb catedral');
   await btnSend.click();
   await expect(btnSend).toHaveText('Enviar Comando');
   await expect(stateEffects).toContainText('rev 45%');
