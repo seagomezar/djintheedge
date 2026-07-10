@@ -166,6 +166,9 @@ export class WebRenderer {
         if (config.effects && typeof config.effects.reverb_mix === 'number') {
             this.reverbMix = config.effects.reverb_mix;
             if (this.reverbWetNode) {
+                // Clear any pending ramp so rapid prompt updates cannot stack
+                // conflicting automation events on the wet-gain param.
+                this.reverbWetNode.gain.cancelScheduledValues(this.ctx.currentTime);
                 this.reverbWetNode.gain.setTargetAtTime(this.reverbMix, this.ctx.currentTime, 0.02);
             }
         }

@@ -190,6 +190,7 @@ describe('WebRenderer reverb chain', () => {
         value: 0,
         setValueAtTime: vi.fn(function (v) { this.value = v; return this; }),
         setTargetAtTime: vi.fn(),
+        cancelScheduledValues: vi.fn(),
         exponentialRampToValueAtTime: vi.fn(),
         linearRampToValueAtTime: vi.fn(),
     });

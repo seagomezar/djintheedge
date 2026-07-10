@@ -13,7 +13,9 @@ test('reverb ConvolverNode produces a decaying tail from the generated IR', asyn
 
   const result = await page.evaluate(async () => {
     // Import the exact IR generator the app uses (same module, same code path).
-    const { buildImpulseResponse } = await import('/djintheedge/js/lib/reverb-ir.js');
+    // Relative to the document base (/djintheedge/), so this is portable across
+    // deploy subpaths and local dev without a base prefix.
+    const { buildImpulseResponse } = await import('./js/lib/reverb-ir.js');
 
     const sampleRate = 44100;
     const seconds = 1.5;
