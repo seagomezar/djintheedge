@@ -180,7 +180,7 @@ Transition block (drives climax / scale morphing):
 
 Called out explicitly so nobody mistakes the facade for the feature.
 
-- **LiteRT-LM / WebGPU / Gemma is a facade.** `litert-lm.js` checks `navigator.gpu`, plays a fake 20-tick loading animation, then routes every message to `parsePromptToDSP`. There is no model file, no OPFS streaming, no GPU inference. The COOP/COEP headers exist to make a future real model possible.
+- **LiteRT-LM / WebGPU / Gemma - real integration, model not yet bundled.** `litert-lm.js` is now a genuine MediaPipe (`@mediapipe/tasks-genai`) WebGPU wrapper with real OPFS model caching (`model-loader.js`), versioned prompt engineering (`prompt-template.js`), schema-validated output (`dsp-schema.js`), and a validate→repair→parser-fallback ladder in `ai-manager.js`. It goes live once the `@mediapipe/tasks-genai` dependency and a Gemma model binary are provisioned (Gate B1); until then the dynamic import fails gracefully and the app runs transparently on `parsePromptToDSP`, with the UI honestly labeled "AI OFFLINE (Parser)". The GPU-machine inference path is wired but not yet verified end-to-end. See [`specs/on-device-llm.md`](specs/on-device-llm.md) and its plan.
 - **"DSP Load" telemetry is fake** (`Math.random()`), not a real per-block load measurement.
 - **Reverb is not implemented** in the audio graph (schema/UI only).
 - **Recording uses the deprecated `ScriptProcessorNode`** rather than an `AudioWorklet`.

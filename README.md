@@ -23,7 +23,8 @@ The interface is styled as a piece of cyber-synthwave hardware, with a real-time
 This is an active, evolving project. Some capabilities are real and some are deliberate facades pending real implementations. We label them plainly rather than overselling:
 
 - **Real today:** the NLP prompt parser, multitrack sequencer, synthesis, delay, sample import, WAV export, visualizer, transitions, and UI.
-- **Facade / not yet real:** the on-device LLM (LiteRT-LM / WebGPU / Gemma) is a facade that routes to the parser; reverb is schema/UI only (no audio node); the "DSP Load" telemetry is randomized, not measured.
+- **Real inference wiring, model not yet bundled:** the on-device LLM path is now a genuine MediaPipe WebGPU integration (`js/lib/litert-lm.js`) with OPFS model caching, schema-validated output, and a repair-retry step. It becomes live once the `@mediapipe/tasks-genai` dependency and a Gemma model binary are provisioned; until then the app transparently and honestly runs on the rule-based parser (the header shows "AI OFFLINE (Parser)"). See [`specs/on-device-llm.md`](specs/on-device-llm.md).
+- **Facade / not yet real:** reverb is schema/UI only (no audio node); the "DSP Load" telemetry is randomized, not measured.
 
 See [`spec.md`](spec.md) for the full, honest inventory (Section A) and the roadmap (Section B).
 
