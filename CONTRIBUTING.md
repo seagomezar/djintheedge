@@ -69,12 +69,12 @@ The heart of the app is a single JSON object - the **DSP contract** - that flows
 
 ## Development workflow
 
-1. Fork the repo and create a branch from `master` (e.g. `feat/reverb-node`, `fix/scheduler-drift`).
+1. Fork the repo and create a branch from `main` (e.g. `feat/reverb-node`, `fix/scheduler-drift`).
 2. Make your change in small, focused commits.
 3. Add or update tests (see [Testing](#testing)).
 4. Run `npm test` and `npm run build` locally - both must pass.
 5. Update `spec.md` / `README.md` if behavior or capabilities changed.
-6. Open a pull request against `master`.
+6. Open a pull request against `main`.
 
 For bug fixes, follow this order: **reproduce the bug end-to-end as a user would, add a failing test, then fix it.** This ensures the fix addresses the real problem.
 
