@@ -32,6 +32,7 @@ const promptHistory = document.getElementById('prompt-history');
 
 // DOM Elements
 const statusGpu = document.getElementById('status-gpu');
+const aiBadge = document.getElementById('ai-badge');
 const statusAudio = document.getElementById('status-audio');
 const telemetryWorklet = document.getElementById('telemetry-worklet');
 const promptInput = document.getElementById('prompt-input');
@@ -55,13 +56,21 @@ const canvasCtx = canvas.getContext('2d');
  */
 async function init() {
     try {
-        statusGpu.innerText = "GPU: Inicializando Gemma 4 Local (~2.58GB)...";
+        statusGpu.innerText = "GPU: Inicializando modelo local...";
         
         // Initialize AI manager with progress tracking
         await ai.initialize((progress) => {
             statusGpu.innerText = `GPU: Cargando Modelo (${Math.round(progress * 100)}%)`;
         });
-        statusGpu.innerText = "GPU: Gemma 4 Lista (Local)";
+        // Report the AI status honestly: only claim the real on-device model
+        // when it actually loaded; otherwise say we are on the rule-based parser.
+        if (ai.usingRealModel) {
+            statusGpu.innerText = "GPU: Gemma Lista (Local)";
+            if (aiBadge) aiBadge.innerText = "AI ON-DEVICE";
+        } else {
+            statusGpu.innerText = "GPU: Sin WebGPU - Parser Local";
+            if (aiBadge) aiBadge.innerText = "AI OFFLINE (Parser)";
+        }
         
         // Initialize Web Audio Engine
         statusAudio.innerText = "Audio: Inicializando...";
