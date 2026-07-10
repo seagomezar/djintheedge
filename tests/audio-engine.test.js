@@ -179,6 +179,32 @@ describe('NLP Semantic Parser (track-array contract)', () => {
         const fromFlat = parsePromptToDSP("add delay", { meta: { bpm: 100 }, dsp_graph: {} });
         expect(Array.isArray(fromFlat.tracks)).toBe(true);
     });
+
+    it('defaults effects.sidechain to 0 on a fresh config', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        const cfg = parsePromptToDSP("house groove");
+        expect(cfg.effects.sidechain).toBe(0);
+    });
+
+    it('"add sidechain pumping" sets effects.sidechain to 0.7', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        const cfg = parsePromptToDSP("add sidechain pumping");
+        expect(cfg.effects.sidechain).toBe(0.7);
+    });
+
+    it('"light sidechain" sets effects.sidechain to 0.4', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        const cfg = parsePromptToDSP("light sidechain");
+        expect(cfg.effects.sidechain).toBe(0.4);
+    });
+
+    it('"no sidechain" turns sidechain off on a prior pumping state', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        const base = parsePromptToDSP("add sidechain pumping");
+        expect(base.effects.sidechain).toBe(0.7);
+        const off = parsePromptToDSP("no sidechain", base);
+        expect(off.effects.sidechain).toBe(0);
+    });
 });
 
 describe('WebRenderer reverb chain', () => {
@@ -267,6 +293,151 @@ describe('WebRenderer reverb chain', () => {
         expect(voiceGain.connect).toHaveBeenCalledWith(renderer.delayDryNode);
         expect(voiceGain.connect).toHaveBeenCalledWith(renderer.delayNode);
         expect(voiceGain.connect).toHaveBeenCalledWith(renderer.reverbSendNode);
+    });
+
+    it('builds the synth bus and routes it to the dry, delay, and reverb sends', () => {
+        // initialize() creates synthBusNode and wires it via connectVoice, so it
+        // must be connected to the same three sends every voice reaches.
+        expect(renderer.synthBusNode).toBeTruthy();
+        expect(renderer.synthBusNode.connect).toHaveBeenCalledWith(renderer.delayDryNode);
+        expect(renderer.synthBusNode.connect).toHaveBeenCalledWith(renderer.delayNode);
+        expect(renderer.synthBusNode.connect).toHaveBeenCalledWith(renderer.reverbSendNode);
+    });
+
+    it('render() sets sidechainDepth from config.effects.sidechain', () => {
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 },
+            tracks: [],
+            effects: { delay_feedback: 0.3, reverb_mix: 0.15, sidechain: 0.7 },
+        });
+        expect(renderer.sidechainDepth).toBe(0.7);
+    });
+
+    it('connectSynthVoice routes a synth voice into the synth bus', () => {
+        const voiceGain = { connect: vi.fn() };
+        renderer.connectSynthVoice(voiceGain);
+        expect(voiceGain.connect).toHaveBeenCalledWith(renderer.synthBusNode);
+    });
+
+    it('triggerSidechainDuck dips the bus to (1-depth) and ramps back to unity', () => {
+        renderer.sidechainDepth = 0.7;
+        const gain = renderer.synthBusNode.gain;
+        gain.setValueAtTime.mockClear();
+        gain.linearRampToValueAtTime.mockClear();
+        gain.cancelScheduledValues.mockClear();
+
+        renderer.triggerSidechainDuck(0, 0.1);
+
+        expect(gain.cancelScheduledValues).toHaveBeenCalledWith(0);
+        // Immediate dip to 1 - 0.7 = 0.3 at the kick onset.
+        expect(gain.setValueAtTime).toHaveBeenCalledTimes(1);
+        const [dipValue, dipTime] = gain.setValueAtTime.mock.calls[0];
+        expect(dipValue).toBeCloseTo(0.3, 10);
+        expect(dipTime).toBe(0);
+        // Linear release back toward unity over 80% of the step (0.1 * 0.8).
+        expect(gain.linearRampToValueAtTime).toHaveBeenCalledTimes(1);
+        const [rampValue, rampTime] = gain.linearRampToValueAtTime.mock.calls[0];
+        expect(rampValue).toBe(1.0);
+        expect(rampTime).toBeCloseTo(0.08, 10);
+    });
+
+    it('triggerSidechainDuck schedules nothing when sidechainDepth is 0', () => {
+        renderer.sidechainDepth = 0;
+        const gain = renderer.synthBusNode.gain;
+        gain.setValueAtTime.mockClear();
+        gain.linearRampToValueAtTime.mockClear();
+        gain.cancelScheduledValues.mockClear();
+
+        renderer.triggerSidechainDuck(0, 0.1);
+
+        expect(gain.setValueAtTime).not.toHaveBeenCalled();
+        expect(gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+        expect(gain.cancelScheduledValues).not.toHaveBeenCalled();
+    });
+
+    it('scheduleStep ducks the synth bus when a kick fires with sidechain on', () => {
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 },
+            tracks: [
+                { id: 'kick', type: 'drum', role: 'kick', muted: false, pattern: [1, 0, 0, 0], sample_name: null },
+            ],
+            effects: { delay_feedback: 0.3, reverb_mix: 0.15, sidechain: 0.7 },
+        });
+        // Silence voice synthesis so the test isolates the sidechain scheduling.
+        renderer.playSyntheticKick = () => {};
+        renderer.playSyntheticHihat = () => {};
+        renderer.playSynthNote = () => {};
+
+        const gain = renderer.synthBusNode.gain;
+        gain.setValueAtTime.mockClear();
+
+        // Step 0: kick pattern[0]=1 fires and must trigger the duck.
+        renderer.scheduleStep(0, 0);
+
+        expect(gain.setValueAtTime).toHaveBeenCalledTimes(1);
+        const [dipValue] = gain.setValueAtTime.mock.calls[0];
+        expect(dipValue).toBeCloseTo(0.3, 10);
+    });
+});
+
+describe('AudioEngine WAV encoding (pure)', () => {
+    let engine;
+
+    beforeEach(async () => {
+        const { AudioEngine } = await import('../js/audio-engine.js');
+        engine = new AudioEngine();
+    });
+
+    it('mergeBuffers concatenates Float32Array chunks in order', () => {
+        const a = new Float32Array([0.1, 0.2]);
+        const b = new Float32Array([0.3, 0.4, 0.5]);
+        const merged = engine.mergeBuffers([a, b], 5);
+        expect(merged).toBeInstanceOf(Float32Array);
+        expect(merged.length).toBe(5);
+        expect(Array.from(merged)).toEqual(
+            [0.1, 0.2, 0.3, 0.4, 0.5].map(v => Math.fround(v))
+        );
+    });
+
+    it('encodeWAV returns an audio/wav Blob sized 44 + N*4 bytes', () => {
+        const N = 8;
+        const samplesL = new Float32Array(N).fill(0.5);
+        const samplesR = new Float32Array(N).fill(-0.5);
+        const blob = engine.encodeWAV(samplesL, samplesR, 44100);
+        expect(blob.type).toBe('audio/wav');
+        // 44-byte header + N stereo frames * 4 bytes/frame (2 channels * 16-bit).
+        expect(blob.size).toBe(44 + N * 4);
+    });
+
+    it('encodeWAV writes a RIFF/WAVE header with 2 channels, correct rate and data length', async () => {
+        const N = 8;
+        const sampleRate = 44100;
+        const samplesL = new Float32Array(N).fill(0.25);
+        const samplesR = new Float32Array(N).fill(-0.25);
+        const blob = engine.encodeWAV(samplesL, samplesR, sampleRate);
+
+        // Read the bytes back. Blob.arrayBuffer() exists in this env; guard so the
+        // assertion stays robust if it ever isn't.
+        expect(typeof blob.arrayBuffer).toBe('function');
+        const buffer = await blob.arrayBuffer();
+        const view = new DataView(buffer);
+        const readString = (offset, len) =>
+            String.fromCharCode(...Array.from({ length: len }, (_, i) => view.getUint8(offset + i)));
+
+        expect(readString(0, 4)).toBe('RIFF');
+        expect(readString(8, 4)).toBe('WAVE');
+        expect(readString(12, 4)).toBe('fmt ');
+        expect(view.getUint16(20, true)).toBe(1);          // PCM
+        expect(view.getUint16(22, true)).toBe(2);          // stereo
+        expect(view.getUint32(24, true)).toBe(sampleRate); // sample rate
+        expect(view.getUint32(28, true)).toBe(sampleRate * 4); // byte rate
+        expect(view.getUint16(32, true)).toBe(4);          // block align
+        expect(view.getUint16(34, true)).toBe(16);         // bits per sample
+        expect(readString(36, 4)).toBe('data');
+        expect(view.getUint32(40, true)).toBe(N * 4);      // data chunk length
+        // Total RIFF size field = 36 + data length.
+        expect(view.getUint32(4, true)).toBe(36 + N * 4);
+        expect(buffer.byteLength).toBe(44 + N * 4);
     });
 });
 

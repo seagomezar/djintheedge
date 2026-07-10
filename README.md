@@ -12,9 +12,9 @@ The interface is styled as a piece of cyber-synthwave hardware, with a real-time
 
 - **Prompt-driven, incremental composition.** A bilingual (Spanish/English) rule-based parser mutates only the tracks a prompt targets: "add a bassline" adds a track, "make the hats faster" edits the hats, "mute the lead" flips a flag, "start over" rebuilds the loop.
 - **Multitrack sequencer.** A variable-length (4-64 step) 16th-note sequencer with a sample-accurate lookahead scheduler drives layered drum and synth tracks over one shared tempo.
-- **Real synthesis.** Synthetic kick, bandpassed-noise hi-hat, and per-track filtered synth voices, plus a feedback delay chain and a convolution reverb send (in-code impulse response, no assets).
+- **Real synthesis.** Synthetic kick, bandpassed-noise hi-hat, and per-track filtered synth voices, plus a feedback delay chain, a convolution reverb send (in-code impulse response, no assets), and kick-synced sidechain ducking.
 - **Local sample import.** Import a folder of `.wav`/`.mp3` files via the File System Access API and trigger them in the sequencer.
-- **WAV recording/export.** Capture your mix and download a real 16-bit PCM stereo WAV.
+- **WAV recording/export.** Capture your mix (via an `AudioWorkletNode`) and download a real 16-bit PCM stereo WAV.
 - **Transitions & climax.** Interpolated filter sweeps, scale morphing, and accelerating drum rolls into a climax.
 - **Offline-first.** No network dependency for the core loop; nothing leaves your machine.
 
@@ -22,7 +22,7 @@ The interface is styled as a piece of cyber-synthwave hardware, with a real-time
 
 This is an active, evolving project. Some capabilities are real and some are deliberate facades pending real implementations. We label them plainly rather than overselling:
 
-- **Real today:** the NLP prompt parser, multitrack sequencer, synthesis, delay, reverb, sample import, WAV export, visualizer, transitions, and UI.
+- **Real today:** the NLP prompt parser, multitrack sequencer, synthesis, delay, reverb, sidechain ducking, sample import, WAV export, visualizer, transitions, and UI.
 - **Real inference wiring, model not yet bundled:** the on-device LLM path is now a genuine MediaPipe WebGPU integration (`js/lib/litert-lm.js`) with OPFS model caching, schema-validated output, and a repair-retry step. It becomes live once the `@mediapipe/tasks-genai` dependency and a Gemma model binary are provisioned; until then the app transparently and honestly runs on the rule-based parser (the header shows "AI OFFLINE (Parser)"). See [`specs/on-device-llm.md`](specs/on-device-llm.md).
 - **Facade / not yet real:** the "DSP Load" telemetry is randomized, not measured.
 
@@ -62,7 +62,7 @@ A single JSON object - the **DSP contract** - flows from the "AI" layer to the a
       "wave_type": "saw", "filter_cutoff_hz": 1450, "filter_resonance": 3.2,
       "adsr": [0.01, 0.15, 0.7, 0.2], "notes": [57,60,64,67, 64,60,57,0] }
   ],
-  "effects": { "delay_feedback": 0.35, "reverb_mix": 0.2 },
+  "effects": { "delay_feedback": 0.35, "reverb_mix": 0.2, "sidechain": 0.0 },
   "transition": null
 }
 ```

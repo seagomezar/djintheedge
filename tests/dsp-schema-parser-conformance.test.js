@@ -53,4 +53,15 @@ describe('parser output conforms to the DSP schema', () => {
         const after = parsePromptToDSP('asdf qwerty', base);
         expectValid(after, 'gibberish "asdf qwerty" with prior state');
     });
+
+    it('validates "sidechain pumping techno"', () => {
+        expectValid(parsePromptToDSP('sidechain pumping techno'), '"sidechain pumping techno"');
+    });
+
+    it('validates "no sidechain" chained onto a prior state', () => {
+        const base = parsePromptToDSP('sidechain pumping techno');
+        expectValid(base, 'the prior "sidechain pumping techno" state');
+        const off = parsePromptToDSP('no sidechain', base);
+        expectValid(off, '"no sidechain" (chained)');
+    });
 });

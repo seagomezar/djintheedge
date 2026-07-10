@@ -108,6 +108,18 @@ test('BrowserDJ AI boots via parser fallback and stays functional', async ({ pag
   await expect(btnSend).toHaveText('Enviar Comando');
   await expect(stateEffects).toContainText('rev 0%');
 
+  // 8. Sidechain: "sidechain pumping" raises the duck amount; "no sidechain"
+  //    clears it. FX readout is "eco N% / rev N% / duck N%".
+  await promptInput.fill('sidechain pumping');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateEffects).toContainText('duck 70%');
+
+  await promptInput.fill('no sidechain');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateEffects).toContainText('duck 0%');
+
   // Screenshot for the record.
   await page.screenshot({
     path: 'tests/e2e/screenshot-after-prompts.png',
