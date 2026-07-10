@@ -51,7 +51,7 @@ export function defaultTemplate(loopSteps = DEFAULT_LOOP_STEPS) {
                 notes: fitNotes([57, 60, 64, 67, 64, 60, 57, 0], steps)
             }
         ],
-        effects: { delay_feedback: 0.3, reverb_mix: 0.15 },
+        effects: { delay_feedback: 0.3, reverb_mix: 0.15, sidechain: 0 },
         transition: null
     };
 }
@@ -134,7 +134,8 @@ export function parsePromptToDSP(prompt, currentState = null) {
     // object slipped in.
     if (!Array.isArray(config.tracks)) config = defaultTemplate();
     if (!config.meta) config.meta = defaultTemplate().meta;
-    if (!config.effects) config.effects = { delay_feedback: 0.3, reverb_mix: 0.15 };
+    if (!config.effects) config.effects = { delay_feedback: 0.3, reverb_mix: 0.15, sidechain: 0 };
+    if (typeof config.effects.sidechain !== "number") config.effects.sidechain = 0;
 
     let steps = clampLoopSteps(config.meta.loop_steps);
 
@@ -191,6 +192,12 @@ export function parsePromptToDSP(prompt, currentState = null) {
         if (/\b(no reverb|sin reverb)\b/.test(text)) config.effects.reverb_mix = 0.0;
         else if (/\b(mucha|alta|cathedral)\b/.test(text)) config.effects.reverb_mix = 0.45;
         else config.effects.reverb_mix = 0.25;
+        touched = true;
+    }
+    if (/\b(sidechain|side-chain|pumping|pump|bombeo)\b/.test(text)) {
+        if (/\b(no sidechain|sin sidechain|sin bombeo|no pump)\b/.test(text)) config.effects.sidechain = 0.0;
+        else if (/\b(light|subtle|suave|poco)\b/.test(text)) config.effects.sidechain = 0.4;
+        else config.effects.sidechain = 0.7;
         touched = true;
     }
 

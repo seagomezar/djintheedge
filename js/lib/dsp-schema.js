@@ -12,7 +12,7 @@
  *     tracks: [ { id, type:"drum",  role, muted, pattern, sample_name }
  *             | { id, type:"synth", muted, wave_type, filter_cutoff_hz,
  *                 filter_resonance, adsr, notes } ],
- *     effects: { delay_feedback, reverb_mix },
+ *     effects: { delay_feedback, reverb_mix, sidechain? },
  *     transition: null | { active, current_step, total_steps, ... }
  *   }
  */
@@ -136,6 +136,11 @@ export function validateDSP(obj) {
     } else {
         if (!isNum(fx.delay_feedback)) fail("effects.delay_feedback: expected a number");
         if (!isNum(fx.reverb_mix)) fail("effects.reverb_mix: expected a number");
+        // sidechain is optional (backward compat). Validate only when present.
+        if ("sidechain" in fx) {
+            if (!isNum(fx.sidechain)) fail("effects.sidechain: expected a number when present");
+            else if (fx.sidechain < 0 || fx.sidechain > 1) fail(`effects.sidechain: expected 0-1, got ${fx.sidechain}`);
+        }
     }
 
     // --- transition (nullable) ---------------------------------------------
