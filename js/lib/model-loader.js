@@ -57,6 +57,12 @@ async function writeToOpfs(fileName, blob) {
         return true;
     } catch (err) {
         console.warn("model-loader: failed to persist model to OPFS (will re-download next run):", err);
+        // A half-written file would pass the size>0 cache check on the next run
+        // and load a corrupt model. Remove the partial entry best-effort.
+        try {
+            const root = await navigator.storage.getDirectory();
+            await root.removeEntry(fileName);
+        } catch { /* nothing to clean up */ }
         return false;
     }
 }
@@ -92,6 +98,14 @@ async function streamToBlob(url, onProgress, signal) {
     // Guard against non-monotonic / >1 progress if headers lie.
     let lastReported = 0;
     for (;;) {
+        // Stop promptly on abort: cancel the reader so the TCP connection is
+        // closed and we stop buffering chunks in memory.
+        if (signal && signal.aborted) {
+            await reader.cancel();
+            const err = new Error("model download aborted");
+            err.name = "AbortError";
+            throw err;
+        }
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);

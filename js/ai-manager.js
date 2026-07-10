@@ -46,12 +46,19 @@ export function extractJson(text) {
     const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
     const candidate = fenced ? fenced[1].trim() : trimmed;
 
-    // Find the first balanced brace-delimited object.
+    // Find the first balanced brace-delimited object. Track string literals
+    // (with backslash escapes) so braces inside strings do not skew the depth.
     const start = candidate.indexOf("{");
     if (start < 0) return null;
     let depth = 0;
+    let inString = false;
+    let escaping = false;
     for (let i = start; i < candidate.length; i++) {
         const ch = candidate[i];
+        if (escaping) { escaping = false; continue; }
+        if (ch === "\\") { escaping = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
         if (ch === "{") depth++;
         else if (ch === "}") {
             depth--;
@@ -122,12 +129,15 @@ export class AIManager {
      * @returns {Promise<object|null>}
      */
     async generateDSPConfig(userPrompt, currentState = null) {
-        // 1. New prompt aborts the previous one.
+        // 1. New prompt aborts the previous one. Keep a local reference to this
+        //    call's controller so cleanup only clears it if it is still current
+        //    (a later call may have already replaced it - see the finally block).
         if (this.currentAbortController) {
             this.currentAbortController.abort();
         }
-        this.currentAbortController = new AbortController();
-        const signal = this.currentAbortController.signal;
+        const controller = new AbortController();
+        this.currentAbortController = controller;
+        const signal = controller.signal;
 
         try {
             const conversation = await this.engine.createConversation({ signal });
@@ -137,7 +147,6 @@ export class AIManager {
             let candidate = extractJson(response.text);
             let result = validateDSP(candidate);
             if (result.valid) {
-                this.currentAbortController = null;
                 return candidate;
             }
 
@@ -150,22 +159,24 @@ export class AIManager {
                 candidate = extractJson(response.text);
                 result = validateDSP(candidate);
                 if (result.valid) {
-                    this.currentAbortController = null;
                     return candidate;
                 }
             }
 
             // 4. Model could not produce valid output -> parser fallback.
             console.warn("Model output failed validation after repair; using parser fallback.", result.errors);
-            this.currentAbortController = null;
             return parsePromptToDSP(userPrompt, currentState);
         } catch (error) {
             if (error.name === "AbortError") {
                 return null;
             }
             console.warn("AI generation error; using parser fallback.", error.message || error);
-            this.currentAbortController = null;
             return parsePromptToDSP(userPrompt, currentState);
+        } finally {
+            // Only clear the controller if a newer call has not replaced it.
+            if (this.currentAbortController === controller) {
+                this.currentAbortController = null;
+            }
         }
     }
 }

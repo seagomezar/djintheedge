@@ -76,7 +76,7 @@ export class LiteRTLMEngine {
         const { FilesetResolver, LlmInference } = genai;
 
         // Stream + cache the model binary (progress 0..~0.9 reserved for download).
-        const { objectUrl } = await loadModel({
+        const { objectUrl, revoke } = await loadModel({
             modelUrl: config.modelUrl,
             fileName: config.fileName,
             onProgress: onProgress ? (f) => onProgress(f * 0.9) : undefined
@@ -88,6 +88,10 @@ export class LiteRTLMEngine {
             baseOptions: { modelAssetPath: objectUrl },
             maxTokens: config.maxTokens
         });
+
+        // Once the runtime has ingested the model, free the multi-gigabyte Blob
+        // held alive by the object URL to avoid memory bloat / OOM on-device.
+        if (revoke) revoke();
 
         if (onProgress) onProgress(1);
         return new LiteRTLMEngine(llm, config);

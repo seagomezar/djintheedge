@@ -50,6 +50,17 @@ describe('extractJson', () => {
         expect(extractJson(null)).toBeNull();
         expect(extractJson(42)).toBeNull();
     });
+
+    it('does not miscount braces inside string literals', () => {
+        // A brace inside a string value must not close the object early.
+        const text = 'Config: {"scale":"A} minor","bpm":120} done.';
+        expect(extractJson(text)).toEqual({ scale: 'A} minor', bpm: 120 });
+    });
+
+    it('handles escaped quotes inside string literals', () => {
+        const text = '{"note":"say \\"hi\\" {now}","n":1}';
+        expect(extractJson(text)).toEqual({ note: 'say "hi" {now}', n: 1 });
+    });
 });
 
 describe('AIManager generateDSPConfig ladder (injected mock engine)', () => {
