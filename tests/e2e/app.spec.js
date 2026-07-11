@@ -93,6 +93,21 @@ test('BrowserDJ AI boots via parser fallback and stays functional', async ({ pag
   // The mute toggle in a muted row shows the muted glyph.
   await expect(leadRow.locator('.track-mute')).toHaveText('🔇');
 
+  // 7. Reverb: a "catedral" prompt raises the reverb mix; "sin reverb" clears it.
+  //    The FX readout is formatted "eco N% / rev N%". Audibility itself is a
+  //    manual check (headless has no speakers), but the wiring must run without
+  //    errors and the deck-state must reflect the change.
+  const stateEffects = page.locator('#state-effects');
+  await promptInput.fill('reverb catedral');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateEffects).toContainText('rev 45%');
+
+  await promptInput.fill('sin reverb');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateEffects).toContainText('rev 0%');
+
   // Screenshot for the record.
   await page.screenshot({
     path: 'tests/e2e/screenshot-after-prompts.png',
