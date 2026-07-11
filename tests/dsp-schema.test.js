@@ -157,4 +157,42 @@ describe('validateDSP rejects invalid configs', () => {
         delete cfg.effects;
         expectInvalid(cfg);
     });
+
+    it('rejects effects.sidechain above the 0-1 range', () => {
+        const cfg = trackConfig();
+        cfg.effects.sidechain = 1.5;
+        expectInvalid(cfg);
+    });
+
+    it('rejects a non-number effects.sidechain', () => {
+        const cfg = trackConfig();
+        cfg.effects.sidechain = 'x';
+        expectInvalid(cfg);
+    });
+});
+
+describe('validateDSP treats effects.sidechain as an optional 0-1 field', () => {
+    it('accepts a config WITHOUT effects.sidechain (backward compat)', () => {
+        const cfg = trackConfig(); // effects has no sidechain key
+        expect('sidechain' in cfg.effects).toBe(false);
+        const result = validateDSP(cfg);
+        expect(result.errors).toEqual([]);
+        expect(result.valid).toBe(true);
+    });
+
+    it('accepts effects.sidechain = 0.7', () => {
+        const cfg = trackConfig();
+        cfg.effects.sidechain = 0.7;
+        expect(isValidDSP(cfg)).toBe(true);
+    });
+
+    it('accepts effects.sidechain at both bounds (0 and 1)', () => {
+        const atMin = trackConfig();
+        atMin.effects.sidechain = 0;
+        expect(isValidDSP(atMin)).toBe(true);
+
+        const atMax = trackConfig();
+        atMax.effects.sidechain = 1;
+        expect(isValidDSP(atMax)).toBe(true);
+    });
 });

@@ -362,7 +362,8 @@ function updateStateMonitor(state) {
     if (stateEffects) {
         const delayPercent = Math.round(state.effects.delay_feedback * 100);
         const reverbPercent = Math.round(state.effects.reverb_mix * 100);
-        stateEffects.innerText = `eco ${delayPercent}% / rev ${reverbPercent}%`;
+        const duckPercent = Math.round((state.effects.sidechain || 0) * 100);
+        stateEffects.innerText = `eco ${delayPercent}% / rev ${reverbPercent}% / duck ${duckPercent}%`;
     }
 }
 

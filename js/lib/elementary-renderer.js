@@ -19,6 +19,7 @@ export class WebRenderer {
         this.tracks = [];          // array of drum/synth track objects
         this.delayFeedback = 0.3;
         this.reverbMix = 0.15;     // wet-send level for the reverb return
+        this.sidechainDepth = 0;   // 0..1 kick-synced duck depth on the synth bus
         this.loopLength = 32;      // default loop length in steps
         this.transition = null;    // tracks progress-based audio parameter morphing
 
@@ -39,6 +40,9 @@ export class WebRenderer {
         this.reverbSendNode = null;
         this.reverbNode = null;
         this.reverbWetNode = null;
+
+        // Synth bus (duckable by the kick for sidechain).
+        this.synthBusNode = null;
 
         // Sequencer Clock state
         this.schedulerIntervalId = null;
@@ -110,6 +114,13 @@ export class WebRenderer {
         this.reverbSendNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
         this.reverbWetNode.gain.setValueAtTime(this.reverbMix, this.ctx.currentTime);
 
+        // Synth bus: all synth voices route through this single gain so the
+        // kick can duck it (sidechain). Drums bypass it - they are the trigger,
+        // not the ducked signal. The bus itself feeds the effect sends.
+        this.synthBusNode = this.ctx.createGain();
+        this.synthBusNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        this.connectVoice(this.synthBusNode);
+
         // Start scheduling clock
         this.nextStepTime = this.ctx.currentTime + 0.1;
         this.startScheduler();
@@ -119,13 +130,41 @@ export class WebRenderer {
 
     /**
      * Routes a voice's output gain to all effect sends: dry, delay, and reverb.
-     * Every voice-spawn site uses this so a new voice can never miss a send.
+     * Used by drums/samples (and by the synth bus itself).
      * @param {AudioNode} voiceGain the per-voice output gain node
      */
     connectVoice(voiceGain) {
         voiceGain.connect(this.delayDryNode);
         voiceGain.connect(this.delayNode);
         if (this.reverbSendNode) voiceGain.connect(this.reverbSendNode);
+    }
+
+    /**
+     * Routes a synth voice through the duckable synth bus (which in turn feeds
+     * the effect sends). Falls back to a direct send connection if the bus is
+     * not yet built.
+     * @param {AudioNode} voiceGain the per-voice output gain node
+     */
+    connectSynthVoice(voiceGain) {
+        if (this.synthBusNode) voiceGain.connect(this.synthBusNode);
+        else this.connectVoice(voiceGain);
+    }
+
+    /**
+     * Schedules a kick-synced duck on the synth bus: an immediate dip to
+     * (1 - depth) followed by a linear release back to unity over most of a
+     * step. No-op when depth is 0 so the bus stays fully transparent.
+     * @param {number} time kick onset time (AudioContext seconds)
+     * @param {number} stepDuration one sixteenth-note in seconds
+     */
+    triggerSidechainDuck(time, stepDuration) {
+        if (this.sidechainDepth <= 0 || !this.synthBusNode) return;
+        const gain = this.synthBusNode.gain;
+        const release = stepDuration * 0.8;
+        // Clear any pending ramp so consecutive kicks don't stack automation.
+        gain.cancelScheduledValues(time);
+        gain.setValueAtTime(1 - this.sidechainDepth, time);
+        gain.linearRampToValueAtTime(1.0, time + release);
     }
 
     /**
@@ -171,6 +210,16 @@ export class WebRenderer {
                 this.reverbWetNode.gain.cancelScheduledValues(this.ctx.currentTime);
                 this.reverbWetNode.gain.setTargetAtTime(this.reverbMix, this.ctx.currentTime, 0.02);
             }
+        }
+
+        // Sidechain duck depth (optional field; default off). Scheduled per-kick
+        // in scheduleStep, so no node update is needed here. When effects is
+        // present but omits sidechain, treat it as off rather than carrying over
+        // the previous depth.
+        if (config.effects) {
+            this.sidechainDepth = typeof config.effects.sidechain === 'number'
+                ? Math.max(0, Math.min(1, config.effects.sidechain))
+                : 0;
         }
     }
 
@@ -276,6 +325,9 @@ export class WebRenderer {
                 } else {
                     this.playSyntheticKick(time);
                 }
+
+                // A kick hit ducks the synth bus (sidechain pump).
+                if (track.role === "kick") this.triggerSidechainDuck(time, stepDuration);
             } else if (track.type === "synth") {
                 const notes = track.notes || [];
                 let midiNote = notes.length > 0 ? notes[step % notes.length] : 0;
@@ -373,7 +425,7 @@ export class WebRenderer {
 
         osc.connect(filter);
         filter.connect(gain);
-        this.connectVoice(gain);
+        this.connectSynthVoice(gain);
 
         // Apply ADSR Envelope
         let a = adsr[0];

@@ -19,7 +19,11 @@ export class AudioEngine {
 
         // Recording buffers & state
         this.isRecording = false;
-        this.recordingProcessor = null;
+        this.recordingProcessor = null;    // legacy ScriptProcessorNode (fallback)
+        this.recorderNode = null;          // AudioWorkletNode (preferred)
+        this.recorderSink = null;          // silent sink keeping the worklet pulled
+        this.recorderModuleLoaded = false; // addModule() only runs once
+        this.recorderMode = null;          // 'worklet' | 'scriptprocessor'
         this.recordingBuffersL = [];
         this.recordingBuffersR = [];
         this.recordingLength = 0;
@@ -123,51 +127,140 @@ export class AudioEngine {
     }
 
     /**
-     * Start or stop session recording.
+     * Start or stop session recording. Prefers an AudioWorkletNode tap; falls
+     * back to the deprecated ScriptProcessorNode if AudioWorklet is unavailable.
+     * @param {boolean} isRecording
+     * @returns {Promise<void>}
      */
-    toggleRecording(isRecording) {
+    async toggleRecording(isRecording) {
         if (isRecording) {
-            // Start recording
             this.recordingBuffersL = [];
             this.recordingBuffersR = [];
             this.recordingLength = 0;
             this.isRecording = true;
 
-            // ScriptProcessor node to capture raw floats without stutters
-            this.recordingProcessor = this.ctx.createScriptProcessor(4096, 2, 2);
-            this.outputNode.connect(this.recordingProcessor);
-            this.recordingProcessor.connect(this.ctx.destination);
-
-            this.recordingProcessor.onaudioprocess = (e) => {
-                if (!this.isRecording) return;
-                const inputL = e.inputBuffer.getChannelData(0);
-                const inputR = e.inputBuffer.getChannelData(1);
-                
-                this.recordingBuffersL.push(new Float32Array(inputL));
-                this.recordingBuffersR.push(new Float32Array(inputR));
-                this.recordingLength += inputL.length;
-            };
-        } else {
-            // Stop recording
-            this.isRecording = false;
-            if (this.recordingProcessor) {
-                this.recordingProcessor.disconnect();
-                this.recordingProcessor.onaudioprocess = null;
-                this.recordingProcessor = null;
+            const started = await this._startWorkletRecording();
+            // The worklet module load is async; the user may have stopped
+            // recording in the meantime. If so, tear down and bail so we don't
+            // leave a leaked, connected node running.
+            if (!this.isRecording) {
+                this._stopRecording();
+                return;
             }
+            if (!started) this._startScriptProcessorRecording();
+        } else {
+            this.isRecording = false;
+            this._stopRecording();
 
-            // Export to WAV
+            // Export to WAV (unchanged encoding).
             if (this.recordingLength > 0) {
                 const samplesL = this.mergeBuffers(this.recordingBuffersL, this.recordingLength);
                 const samplesR = this.mergeBuffers(this.recordingBuffersR, this.recordingLength);
                 const wavBlob = this.encodeWAV(samplesL, samplesR, this.ctx.sampleRate);
-                
+
                 const url = URL.createObjectURL(wavBlob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `browser_dj_set_${Date.now()}.wav`;
                 a.click();
             }
+        }
+    }
+
+    /**
+     * Starts capture via an AudioWorkletNode. Returns false if AudioWorklet is
+     * unsupported or the module fails to load (caller then uses the fallback).
+     * @returns {Promise<boolean>}
+     */
+    async _startWorkletRecording() {
+        if (!this.ctx.audioWorklet) return false;
+        try {
+            if (!this.recorderModuleLoaded) {
+                await this.ctx.audioWorklet.addModule(new URL('./lib/recorder-worklet.js', import.meta.url));
+                this.recorderModuleLoaded = true;
+            }
+
+            // Recording may have been stopped while the module was loading; do
+            // not build/connect a node that would leak (toggleRecording also
+            // re-checks, but bail early to avoid the wiring below).
+            if (!this.isRecording) return false;
+
+            this.recorderNode = new AudioWorkletNode(this.ctx, 'recorder', {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                outputChannelCount: [1],
+            });
+
+            this.recorderNode.port.onmessage = (e) => {
+                if (!this.isRecording || !e.data || !e.data.l || !e.data.r) return;
+                this.recordingBuffersL.push(e.data.l);
+                this.recordingBuffersR.push(e.data.r);
+                this.recordingLength += e.data.l.length;
+            };
+
+            // Tap the post-FX output. The worklet has a (silent) output that we
+            // connect to a zero-gain sink so the graph keeps pulling render
+            // quanta through it.
+            this.outputNode.connect(this.recorderNode);
+            this.recorderSink = this.ctx.createGain();
+            this.recorderSink.gain.setValueAtTime(0, this.ctx.currentTime);
+            this.recorderNode.connect(this.recorderSink);
+            this.recorderSink.connect(this.ctx.destination);
+
+            this.recorderMode = 'worklet';
+            return true;
+        } catch (err) {
+            console.warn('AudioWorklet recording unavailable; falling back to ScriptProcessor.', err);
+            return false;
+        }
+    }
+
+    /**
+     * Legacy capture path (deprecated ScriptProcessorNode) kept as a fallback.
+     */
+    _startScriptProcessorRecording() {
+        this.recordingProcessor = this.ctx.createScriptProcessor(4096, 2, 2);
+        this.outputNode.connect(this.recordingProcessor);
+        this.recordingProcessor.connect(this.ctx.destination);
+        this.recorderMode = 'scriptprocessor';
+
+        this.recordingProcessor.onaudioprocess = (e) => {
+            if (!this.isRecording) return;
+            const inputL = e.inputBuffer.getChannelData(0);
+            const inputR = e.inputBuffer.getChannelData(1);
+            this.recordingBuffersL.push(new Float32Array(inputL));
+            this.recordingBuffersR.push(new Float32Array(inputR));
+            this.recordingLength += inputL.length;
+        };
+    }
+
+    /**
+     * Tears down whichever recording node was active.
+     */
+    _stopRecording() {
+        if (this.recorderNode) {
+            try { this.recorderNode.port.postMessage({ type: 'stop' }); } catch { /* ignore */ }
+            // disconnect() only cuts outgoing edges; explicitly cut the incoming
+            // outputNode -> recorderNode edge so outputNode doesn't accumulate
+            // dead connections across recording sessions.
+            if (this.outputNode) {
+                try { this.outputNode.disconnect(this.recorderNode); } catch { /* not connected */ }
+            }
+            this.recorderNode.disconnect();
+            this.recorderNode.port.onmessage = null;
+            this.recorderNode = null;
+        }
+        if (this.recorderSink) {
+            this.recorderSink.disconnect();
+            this.recorderSink = null;
+        }
+        if (this.recordingProcessor) {
+            if (this.outputNode) {
+                try { this.outputNode.disconnect(this.recordingProcessor); } catch { /* not connected */ }
+            }
+            this.recordingProcessor.disconnect();
+            this.recordingProcessor.onaudioprocess = null;
+            this.recordingProcessor = null;
         }
     }
 

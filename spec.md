@@ -132,7 +132,7 @@ It is a **track-array** model: layered instrument tracks over one shared tempo a
       "adsr": [0.01, 0.15, 0.7, 0.2],
       "notes": [57,60,64,67, 64,60,57,0] }               // MIDI numbers, 0 = rest
   ],
-  "effects": { "delay_feedback": 0.35, "reverb_mix": 0.2 },
+  "effects": { "delay_feedback": 0.35, "reverb_mix": 0.2, "sidechain": 0.0 },
   "transition": null                 // or the transition block below
 }
 ```
@@ -142,7 +142,7 @@ Rules:
 - `pattern`/`notes` length equals `meta.loop_steps` (default 32, max 64). Shorter arrays still wrap via modulo in the scheduler.
 - `id` is stable and unique; it is how prompts target a track and how the UI diffs changes for highlighting.
 - Soft cap of ~8 tracks keeps the grid readable and audio stable.
-- `effects` and `transition` stay global.
+- `effects` and `transition` stay global. `effects.sidechain` (0..1) is **optional** for backward compatibility - absent is treated as `0` (off).
 
 Transition block (drives climax / scale morphing):
 
@@ -171,8 +171,9 @@ Transition block (drives climax / scale morphing):
 - **Synthesis (real):** synthetic kick (150→40Hz pitch drop), bandpassed-noise hi-hat, and per-synth-track filtered voices (oscillator → lowpass biquad → ADSR gain) spawned per step, each using its own track's wave/cutoff/resonance/ADSR.
 - **Delay effect (real):** feedback delay chain (dry/wet/delay/feedback gains).
 - **Reverb effect (real):** a global convolution reverb send (`ConvolverNode`) driven by `effects.reverb_mix`. The impulse response is generated in-code (decaying filtered noise via `js/lib/reverb-ir.js`) so no audio asset ships; the wet return is ramped click-free (`setTargetAtTime`) and sums into the output before the recording tap, so reverb is both visualized and captured in the exported WAV.
+- **Sidechain ducking (real):** synth voices route through a shared synth bus; each kick hit ducks that bus by `effects.sidechain` (0..1) with a fast dip + linear release scheduled per-step (drums are the trigger and are not ducked). Click-free via `cancelScheduledValues` before each dip; `sidechain: 0` is fully transparent. See [`specs/sidechain-worklet.md`](specs/sidechain-worklet.md).
 - **Local sample import (real):** `SampleLoader` uses the File System Access API (`showDirectoryPicker`) to import `.wav`/`.mp3`, decode to `AudioBuffer`, and register custom kicks.
-- **WAV recording/export (real):** captures stereo Float32 via `ScriptProcessorNode`, encodes a real 16-bit PCM stereo WAV, and auto-downloads it.
+- **WAV recording/export (real):** captures stereo Float32 via an `AudioWorkletNode` (the deprecated `ScriptProcessorNode` remains only as a fallback when `audioWorklet` is unavailable), encodes a real 16-bit PCM stereo WAV, and auto-downloads it.
 - **Oscilloscope visualizer (real):** time-domain analyser rendered on canvas with a motion-blur trail and grid.
 - **Transitions / climax / scale morphing (real):** interpolates filter cutoff across the transition, transposes the melody to the target scale at the midpoint, and (when `drum_exploding`) fires accelerating kick/hat rolls into a climax.
 - **UI panels (real):** header metrics, three live sliders (master volume, master cutoff, loop length up to 64), an "AI Deck State" monitor (scale/tempo/synth/drums/FX with special Morfosis/Redoblando/Explosión states), a **per-track step-grid** (one row per track with lit cells, note names on synth rows, a moving playhead, per-track mute toggles, and a pulse-highlight on rows a prompt just changed), and a capped prompt-history feed.
@@ -183,7 +184,7 @@ Called out explicitly so nobody mistakes the facade for the feature.
 
 - **LiteRT-LM / WebGPU / Gemma - real integration, model not yet bundled.** `litert-lm.js` is now a genuine MediaPipe (`@mediapipe/tasks-genai`) WebGPU wrapper with real OPFS model caching (`model-loader.js`), versioned prompt engineering (`prompt-template.js`), schema-validated output (`dsp-schema.js`), and a validate→repair→parser-fallback ladder in `ai-manager.js`. It goes live once the `@mediapipe/tasks-genai` dependency and a Gemma model binary are provisioned (Gate B1); until then the dynamic import fails gracefully and the app runs transparently on `parsePromptToDSP`, with the UI honestly labeled "AI OFFLINE (Parser)". The GPU-machine inference path is wired but not yet verified end-to-end. See [`specs/on-device-llm.md`](specs/on-device-llm.md) and its plan.
 - **"DSP Load" telemetry is fake** (`Math.random()`), not a real per-block load measurement.
-- **Recording uses the deprecated `ScriptProcessorNode`** rather than an `AudioWorklet`.
+- **A deprecated `ScriptProcessorNode` recording path still exists as a fallback** (used only when `AudioWorklet` is unavailable); the primary path is now an `AudioWorkletNode`.
 
 Previously listed here and now fixed (see the multitrack work): stateful loop accumulation is wired (`generateDSPConfig` forwards `currentState` to `parsePromptToDSP`, and incremental layering works), and the order-dependent `seq2` extraction contract is gone (the renderer consumes the track array directly; the `el.*` DSL param-extraction skin was removed).
 
