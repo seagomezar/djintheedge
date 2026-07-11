@@ -6,6 +6,16 @@
 
 import { buildImpulseResponse } from './reverb-ir.js';
 
+/** Maps a DSP wave_type to a native Web Audio OscillatorNode type. "fm" is
+ *  handled separately (a two-oscillator voice), so it is absent here. */
+const OSC_TYPE_MAP = { saw: 'sawtooth', cycle: 'sine', square: 'square' };
+
+/** FM voice preset: modulator frequency = carrier * MOD_RATIO; peak frequency
+ *  deviation (Hz) = carrier * MOD_INDEX. The effective modulation index is
+ *  MOD_INDEX / MOD_RATIO (~2 here), a rich-but-musical two-operator timbre. */
+const FM_MOD_RATIO = 2.0;
+const FM_MOD_INDEX = 4.0;
+
 export class WebRenderer {
     constructor() {
         this.ctx = null;
@@ -395,12 +405,33 @@ export class WebRenderer {
         const adsr = Array.isArray(track.adsr) ? track.adsr : [0.01, 0.15, 0.7, 0.2];
         const trackId = track.id || 'lead';
 
-        const osc = this.ctx.createOscillator();
-        osc.type = waveType === 'saw' ? 'sawtooth' : 'sine';
-
         // Frequency mapping
         const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
-        osc.frequency.setValueAtTime(freq, time);
+
+        // Carrier oscillator. For "fm" the carrier is a sine driven by a
+        // modulator; for the others it is a single native-type oscillator.
+        // `oscillators` collects every source node so all get start()/stop().
+        const osc = this.ctx.createOscillator();
+        const oscillators = [osc];
+        if (waveType === 'fm') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, time);
+
+            const modulator = this.ctx.createOscillator();
+            modulator.type = 'sine';
+            modulator.frequency.setValueAtTime(freq * FM_MOD_RATIO, time);
+
+            const modGain = this.ctx.createGain();
+            modGain.gain.setValueAtTime(freq * FM_MOD_INDEX, time);
+
+            // modulator -> modGain -> carrier.frequency (frequency modulation)
+            modulator.connect(modGain);
+            modGain.connect(osc.frequency);
+            oscillators.push(modulator);
+        } else {
+            osc.type = OSC_TYPE_MAP[waveType] || 'sawtooth';
+            osc.frequency.setValueAtTime(freq, time);
+        }
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
@@ -448,8 +479,13 @@ export class WebRenderer {
         // Release
         gain.gain.linearRampToValueAtTime(0.001, time + gateDuration + r);
 
-        osc.start(time);
-        osc.stop(time + gateDuration + r + 0.05);
+        // Start/stop every source (carrier + FM modulator) in lockstep so no
+        // node is left dangling.
+        const stopTime = time + gateDuration + r + 0.05;
+        for (const o of oscillators) {
+            o.start(time);
+            o.stop(stopTime);
+        }
     }
 
     /**

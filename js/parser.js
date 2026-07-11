@@ -360,7 +360,8 @@ function editSynthParams(text, config, mentionsBass, mentionsPad) {
     if (!t) return false;
     let changed = false;
 
-    if (/\b(sine|cycle|senoidal|soft|smooth)\b/.test(text)) { t.wave_type = "cycle"; changed = true; }
+    if (/\b(fm|metallic|met[aá]lico|bell|campana|growl)\b/.test(text)) { t.wave_type = "fm"; changed = true; }
+    else if (/\b(sine|cycle|senoidal|soft|smooth)\b/.test(text)) { t.wave_type = "cycle"; changed = true; }
     else if (/\b(saw|diente de sierra|bright|techno)\b/.test(text)) { t.wave_type = "saw"; changed = true; }
     else if (/\b(square|cuadrada|retro)\b/.test(text)) { t.wave_type = "square"; changed = true; }
 

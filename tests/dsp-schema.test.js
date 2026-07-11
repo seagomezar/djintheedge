@@ -171,6 +171,34 @@ describe('validateDSP rejects invalid configs', () => {
     });
 });
 
+describe('validateDSP wave_type enumeration', () => {
+    it('accepts a synth track with wave_type "fm"', () => {
+        const cfg = trackConfig();
+        cfg.tracks[2].wave_type = 'fm';
+        const result = validateDSP(cfg);
+        expect(result.errors).toEqual([]);
+        expect(result.valid).toBe(true);
+    });
+
+    it('accepts the classic wave_types "saw", "cycle", and "square"', () => {
+        for (const wave of ['saw', 'cycle', 'square']) {
+            const cfg = trackConfig();
+            cfg.tracks[2].wave_type = wave;
+            const result = validateDSP(cfg);
+            expect(result.errors).toEqual([]);
+            expect(result.valid).toBe(true);
+        }
+    });
+
+    it('rejects an unknown wave_type and the error mentions wave_type', () => {
+        const cfg = trackConfig();
+        cfg.tracks[2].wave_type = 'triangle';
+        const result = validateDSP(cfg);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.includes('wave_type'))).toBe(true);
+    });
+});
+
 describe('validateDSP treats effects.sidechain as an optional 0-1 field', () => {
     it('accepts a config WITHOUT effects.sidechain (backward compat)', () => {
         const cfg = trackConfig(); // effects has no sidechain key

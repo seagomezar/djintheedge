@@ -120,6 +120,18 @@ test('BrowserDJ AI boots via parser fallback and stays functional', async ({ pag
   await expect(btnSend).toHaveText('Enviar Comando');
   await expect(stateEffects).toContainText('duck 0%');
 
+  // 9. Oscillators: "square retro" and "fm bell" update the synth wave readout.
+  const stateSynth = page.locator('#state-synth');
+  await promptInput.fill('square retro lead');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateSynth).toContainText('Cuadrada');
+
+  await promptInput.fill('fm bell lead');
+  await btnSend.click();
+  await expect(btnSend).toHaveText('Enviar Comando');
+  await expect(stateSynth).toContainText('FM');
+
   // Screenshot for the record.
   await page.screenshot({
     path: 'tests/e2e/screenshot-after-prompts.png',

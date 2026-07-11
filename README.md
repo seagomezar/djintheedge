@@ -12,7 +12,7 @@ The interface is styled as a piece of cyber-synthwave hardware, with a real-time
 
 - **Prompt-driven, incremental composition.** A bilingual (Spanish/English) rule-based parser mutates only the tracks a prompt targets: "add a bassline" adds a track, "make the hats faster" edits the hats, "mute the lead" flips a flag, "start over" rebuilds the loop.
 - **Multitrack sequencer.** A variable-length (4-64 step) 16th-note sequencer with a sample-accurate lookahead scheduler drives layered drum and synth tracks over one shared tempo.
-- **Real synthesis.** Synthetic kick, bandpassed-noise hi-hat, and per-track filtered synth voices, plus a feedback delay chain, a convolution reverb send (in-code impulse response, no assets), and kick-synced sidechain ducking.
+- **Real synthesis.** Synthetic kick, bandpassed-noise hi-hat, and per-track filtered synth voices (saw / sine / real square / two-operator FM), plus a feedback delay chain, a convolution reverb send (in-code impulse response, no assets), and kick-synced sidechain ducking.
 - **Local sample import.** Import a folder of `.wav`/`.mp3` files via the File System Access API and trigger them in the sequencer.
 - **WAV recording/export.** Capture your mix (via an `AudioWorkletNode`) and download a real 16-bit PCM stereo WAV.
 - **Transitions & climax.** Interpolated filter sweeps, scale morphing, and accelerating drum rolls into a climax.

@@ -126,7 +126,7 @@ It is a **track-array** model: layered instrument tracks over one shared tempo a
       "pattern": [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,1],
       "sample_name": null },
     { "id": "lead", "type": "synth", "muted": false,
-      "wave_type": "saw",            // "saw" | "cycle" | "square"
+      "wave_type": "saw",            // "saw" | "cycle" | "square" | "fm"
       "filter_cutoff_hz": 1450,
       "filter_resonance": 3.2,
       "adsr": [0.01, 0.15, 0.7, 0.2],
@@ -159,7 +159,7 @@ Transition block (drives climax / scale morphing):
 
 **Contract caveats that must be preserved (or deliberately fixed):**
 - Tracks are addressed by `id`/`type`, not tree position - the old order-dependent `seq2` extraction contract is gone.
-- `wave_type: "square"` is accepted by the parser but rendered as a sine wave.
+- `wave_type` supports `saw`/`cycle`/`square`/`fm`; `square` renders a real square wave and `fm` is a two-operator FM voice (see [`specs/oscillators.md`](specs/oscillators.md)).
 - `filter_cutoff_hz` is now read per synth track to seed each voice's filter; the `manualCutoff` slider then acts as a live **master** sweep across all synth tracks, and the transition sweep animates them too.
 - `effects.reverb_mix` drives a real convolution reverb send (a `ConvolverNode` with an in-code impulse response); it is ramped click-free on live changes and is included in the recorded WAV. See [`specs/reverb.md`](specs/reverb.md).
 
@@ -168,7 +168,7 @@ Transition block (drives climax / scale morphing):
 - **Prompt parsing (real, primary feature):** bilingual regex/keyword engine `parsePromptToDSP` (in `js/parser.js`). It is **incremental/additive**: it starts from a deep copy of the current loop state and mutates only the track(s) a prompt targets - "add a bassline" adds a track, "make the hats faster" edits only the hats, "mute the lead" flips one flag, "remove the bass" drops a track. Full-replace phrases ("start over", "reset", "new techno track") rebuild a fresh template; gibberish returns the current state unchanged. Also extracts BPM (numeric or fast/slow/`lento`), scale + regenerated melody, genre presets, wave type, cutoff, resonance, ADSR presets, drum-pattern toggles, custom-sample references, delay/reverb keywords, loop length, and multi-step transition requests.
 - **Multitrack (real):** the loop is a `tracks[]` array (drum + synth layers) over one shared tempo/loop length; tracks are independently addressable, editable, mutable, and removable, with a soft cap of ~8.
 - **Sequencer (real):** variable-length (4-64 step) 16th-note sequencer using a standard lookahead scheduler (50ms `setInterval`, 100ms schedule-ahead window, sample-accurate `AudioContext.currentTime` timestamps, suspended-context catch-up guard). It iterates the track array by `id`/`type` and skips muted tracks at schedule time (live mute takes effect on the next step, click-free).
-- **Synthesis (real):** synthetic kick (150→40Hz pitch drop), bandpassed-noise hi-hat, and per-synth-track filtered voices (oscillator → lowpass biquad → ADSR gain) spawned per step, each using its own track's wave/cutoff/resonance/ADSR.
+- **Synthesis (real):** synthetic kick (150→40Hz pitch drop), bandpassed-noise hi-hat, and per-synth-track filtered voices (oscillator → lowpass biquad → ADSR gain) spawned per step, each using its own track's wave/cutoff/resonance/ADSR. Wave types are saw, sine (`cycle`), real square, and a two-operator `fm` voice (carrier + modulator) that shares the same filter/ADSR/sidechain path.
 - **Delay effect (real):** feedback delay chain (dry/wet/delay/feedback gains).
 - **Reverb effect (real):** a global convolution reverb send (`ConvolverNode`) driven by `effects.reverb_mix`. The impulse response is generated in-code (decaying filtered noise via `js/lib/reverb-ir.js`) so no audio asset ships; the wet return is ramped click-free (`setTargetAtTime`) and sums into the output before the recording tap, so reverb is both visualized and captured in the exported WAV.
 - **Sidechain ducking (real):** synth voices route through a shared synth bus; each kick hit ducks that bus by `effects.sidechain` (0..1) with a fast dip + linear release scheduled per-step (drums are the trigger and are not ducked). Click-free via `cancelScheduledValues` before each dip; `sidechain: 0` is fully transparent. See [`specs/sidechain-worklet.md`](specs/sidechain-worklet.md).
@@ -214,7 +214,7 @@ Replace the facade with genuine local inference while keeping the NLP parser as 
 
 Deepen synthesis and move DSP off the main thread.
 - Reverb is now audible (done - see A.2); next, add sidechain/ducking and optional convolution-IR file loading.
-- Add polyphony and more oscillator/wave types (true `square`, FM, wavetable).
+- Real `square` and an `fm` voice are done (see A.2); next, add polyphony and further oscillator/wave types (wavetable, true triangle).
 - Migrate the real-time graph and recording tap to an **AudioWorklet**, retiring `ScriptProcessorNode`.
 - Optionally make the Elementary DSL a real signal compiler rather than a param-extraction skin, removing the order-dependent `seq2` contract.
 - **Success:** every parameter in the DSP contract is audibly honored; no audio glitches under load; DSP runs in an isolated worklet thread.

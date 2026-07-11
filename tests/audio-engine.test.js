@@ -85,6 +85,26 @@ describe('NLP Semantic Parser (track-array contract)', () => {
         expect(lead(r2).wave_type).toBe('cycle');
     });
 
+    it('routes FM/metallic/bell/growl keywords to the lead wave_type "fm"', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        expect(lead(parsePromptToDSP("fm bell lead")).wave_type).toBe('fm');
+        expect(lead(parsePromptToDSP("metallic")).wave_type).toBe('fm');
+        expect(lead(parsePromptToDSP("growl")).wave_type).toBe('fm');
+        // Spanish synonyms map to the same FM voice.
+        expect(lead(parsePromptToDSP("campana")).wave_type).toBe('fm');
+        expect(lead(parsePromptToDSP("metálico")).wave_type).toBe('fm');
+    });
+
+    it('"square retro" still yields wave_type "square" (not stolen by fm)', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        expect(lead(parsePromptToDSP("square retro")).wave_type).toBe('square');
+    });
+
+    it('"soft sine" yields wave_type "cycle"', async () => {
+        const { parsePromptToDSP } = await import('../js/ai-manager.js');
+        expect(lead(parsePromptToDSP("soft sine")).wave_type).toBe('cycle');
+    });
+
     it('should conform to the track-array schema with a default template', async () => {
         const { parsePromptToDSP, DEFAULT_LOOP_STEPS } = await import('../js/ai-manager.js');
         const cfg = parsePromptToDSP("house groove");
@@ -388,6 +408,131 @@ describe('WebRenderer reverb chain', () => {
         expect(gain.setValueAtTime).toHaveBeenCalledTimes(1);
         const [dipValue] = gain.setValueAtTime.mock.calls[0];
         expect(dipValue).toBeCloseTo(0.3, 10);
+    });
+});
+
+describe('WebRenderer playSynthNote oscillator voices', () => {
+    let renderer;
+    let createdOscillators;
+
+    // A minimal AudioParam stub (records set values; identity is stable per node
+    // so the modGain->carrier.frequency wiring assertion can compare by reference).
+    const makeParam = () => ({
+        value: 0,
+        setValueAtTime: vi.fn(function (v) { this.value = v; return this; }),
+        setTargetAtTime: vi.fn(),
+        cancelScheduledValues: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+    });
+
+    // Oscillator stub: distinguishable per instance, with a stable `frequency`
+    // param object so FM routing (modGain.connect(carrier.frequency)) can be
+    // asserted by object identity.
+    const makeOscillator = () => ({
+        type: undefined,
+        frequency: makeParam(),
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+    });
+
+    const makeGain = () => ({
+        gain: makeParam(),
+        connect: vi.fn(),
+    });
+
+    const makeFilter = () => ({
+        type: undefined,
+        frequency: makeParam(),
+        Q: makeParam(),
+        connect: vi.fn(),
+    });
+
+    beforeEach(() => {
+        renderer = new WebRenderer();
+        createdOscillators = [];
+        renderer.ctx = {
+            currentTime: 0,
+            createOscillator: vi.fn(() => {
+                const osc = makeOscillator();
+                createdOscillators.push(osc);
+                return osc;
+            }),
+            createGain: vi.fn(() => makeGain()),
+            createBiquadFilter: vi.fn(() => makeFilter()),
+        };
+        renderer.synthFilters = {};
+        // Isolate note synthesis from the send/bus routing.
+        renderer.connectSynthVoice = vi.fn();
+    });
+
+    const track = (overrides = {}) => ({
+        id: 'lead', type: 'synth', muted: false,
+        wave_type: 'saw', filter_cutoff_hz: 1200, filter_resonance: 2.5,
+        adsr: [0.01, 0.1, 0.5, 0.2], notes: [60],
+        ...overrides,
+    });
+
+    it('wave_type "square" sets the oscillator .type to "square" (regression: was "sine")', () => {
+        renderer.playSynthNote(60, 0, 0.5, track({ wave_type: 'square' }));
+        expect(renderer.ctx.createOscillator).toHaveBeenCalledTimes(1);
+        expect(createdOscillators[0].type).toBe('square');
+    });
+
+    it('wave_type "saw" -> "sawtooth" and "cycle" -> "sine"', () => {
+        renderer.playSynthNote(60, 0, 0.5, track({ wave_type: 'saw' }));
+        expect(createdOscillators[0].type).toBe('sawtooth');
+
+        createdOscillators = [];
+        renderer.ctx.createOscillator.mockClear();
+        renderer.playSynthNote(60, 0, 0.5, track({ wave_type: 'cycle' }));
+        expect(createdOscillators[0].type).toBe('sine');
+    });
+
+    it('non-fm wave_type creates exactly one oscillator', () => {
+        renderer.playSynthNote(60, 0, 0.5, track({ wave_type: 'saw' }));
+        expect(renderer.ctx.createOscillator).toHaveBeenCalledTimes(1);
+    });
+
+    it('wave_type "fm" builds a carrier + modulator FM voice and routes through the synth bus', () => {
+        renderer.playSynthNote(60, 0, 0.5, track({ wave_type: 'fm' }));
+
+        // Two oscillators: carrier (first) + modulator (second).
+        expect(renderer.ctx.createOscillator).toHaveBeenCalledTimes(2);
+        const [carrier, modulator] = createdOscillators;
+        expect(carrier.type).toBe('sine');
+        expect(modulator.type).toBe('sine');
+
+        // freq for MIDI 60 = 440 * 2^((60-69)/12).
+        const freq = 440 * Math.pow(2, (60 - 69) / 12);
+        // Modulator frequency = carrier * 2.0 (FM_MOD_RATIO).
+        expect(modulator.frequency.value).toBeCloseTo(freq * 2.0, 6);
+
+        // A modGain was created; find the gain node the modulator connects into.
+        expect(modulator.connect).toHaveBeenCalledTimes(1);
+        const modGain = modulator.connect.mock.calls[0][0];
+        // modGain gain = carrier * 4.0 (FM_MOD_INDEX).
+        expect(modGain.gain.value).toBeCloseTo(freq * 4.0, 6);
+
+        // modGain wires into the carrier oscillator's frequency AudioParam.
+        expect(modGain.connect).toHaveBeenCalledWith(carrier.frequency);
+
+        // The carrier connects to the lowpass filter.
+        const filterNode = renderer.synthFilters['lead'];
+        expect(filterNode).toBeTruthy();
+        expect(carrier.connect).toHaveBeenCalledWith(filterNode);
+
+        // FM still routes through the duckable synth bus exactly once.
+        expect(renderer.connectSynthVoice).toHaveBeenCalledTimes(1);
+
+        // Both oscillators start/stop in lockstep at the same times.
+        const gateDuration = 0.5 * 0.8;
+        const stopTime = 0 + gateDuration + 0.2 + 0.05;
+        for (const o of [carrier, modulator]) {
+            expect(o.start).toHaveBeenCalledWith(0);
+            expect(o.stop).toHaveBeenCalledWith(stopTime);
+        }
     });
 });
 

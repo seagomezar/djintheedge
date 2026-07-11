@@ -333,7 +333,8 @@ function updateStateMonitor(state) {
             stateSynth.innerText = "Sin Synth";
         } else {
             const waveName = lead.wave_type === 'cycle' ? 'Sine' :
-                             lead.wave_type === 'square' ? 'Cuadrada' : 'Sierra';
+                             lead.wave_type === 'square' ? 'Cuadrada' :
+                             lead.wave_type === 'fm' ? 'FM' : 'Sierra';
             if (state.transition && state.transition.active) {
                 stateSynth.innerText = `Mapeando a ${waveName.toUpperCase()}`;
             } else {

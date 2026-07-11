@@ -24,7 +24,7 @@ export const MAX_LOOP_STEPS = 64;
 /** Allowed enumerations. */
 const TRACK_TYPES = ["drum", "synth"];
 const DRUM_ROLES = ["kick", "hihat"];
-const WAVE_TYPES = ["saw", "cycle", "square"];
+const WAVE_TYPES = ["saw", "cycle", "square", "fm"];
 
 /** True if `v` is a finite number. */
 function isNum(v) {
