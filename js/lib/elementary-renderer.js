@@ -223,9 +223,13 @@ export class WebRenderer {
         }
 
         // Sidechain duck depth (optional field; default off). Scheduled per-kick
-        // in scheduleStep, so no node update is needed here.
-        if (config.effects && typeof config.effects.sidechain === 'number') {
-            this.sidechainDepth = Math.max(0, Math.min(1, config.effects.sidechain));
+        // in scheduleStep, so no node update is needed here. When effects is
+        // present but omits sidechain, treat it as off rather than carrying over
+        // the previous depth.
+        if (config.effects) {
+            this.sidechainDepth = typeof config.effects.sidechain === 'number'
+                ? Math.max(0, Math.min(1, config.effects.sidechain))
+                : 0;
         }
     }
 

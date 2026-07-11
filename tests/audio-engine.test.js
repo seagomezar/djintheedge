@@ -344,6 +344,21 @@ describe('WebRenderer reverb chain', () => {
         expect(renderer.sidechainDepth).toBe(0.7);
     });
 
+    it('render() resets sidechainDepth to 0 when effects omits sidechain', () => {
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 }, tracks: [],
+            effects: { delay_feedback: 0.3, reverb_mix: 0.15, sidechain: 0.7 },
+        });
+        expect(renderer.sidechainDepth).toBe(0.7);
+        // A later config without sidechain (valid, optional field) must not
+        // carry the previous depth over.
+        renderer.render({
+            meta: { bpm: 120, loop_steps: 4 }, tracks: [],
+            effects: { delay_feedback: 0.3, reverb_mix: 0.15 },
+        });
+        expect(renderer.sidechainDepth).toBe(0);
+    });
+
     it('connectSynthVoice routes a synth voice into the synth bus', () => {
         const voiceGain = { connect: vi.fn() };
         renderer.connectSynthVoice(voiceGain);
