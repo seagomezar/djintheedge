@@ -140,6 +140,13 @@ export class AudioEngine {
             this.isRecording = true;
 
             const started = await this._startWorkletRecording();
+            // The worklet module load is async; the user may have stopped
+            // recording in the meantime. If so, tear down and bail so we don't
+            // leave a leaked, connected node running.
+            if (!this.isRecording) {
+                this._stopRecording();
+                return;
+            }
             if (!started) this._startScriptProcessorRecording();
         } else {
             this.isRecording = false;
@@ -173,6 +180,11 @@ export class AudioEngine {
                 this.recorderModuleLoaded = true;
             }
 
+            // Recording may have been stopped while the module was loading; do
+            // not build/connect a node that would leak (toggleRecording also
+            // re-checks, but bail early to avoid the wiring below).
+            if (!this.isRecording) return false;
+
             this.recorderNode = new AudioWorkletNode(this.ctx, 'recorder', {
                 numberOfInputs: 1,
                 numberOfOutputs: 1,
@@ -180,7 +192,7 @@ export class AudioEngine {
             });
 
             this.recorderNode.port.onmessage = (e) => {
-                if (!this.isRecording || !e.data) return;
+                if (!this.isRecording || !e.data || !e.data.l || !e.data.r) return;
                 this.recordingBuffersL.push(e.data.l);
                 this.recordingBuffersR.push(e.data.r);
                 this.recordingLength += e.data.l.length;
@@ -228,6 +240,12 @@ export class AudioEngine {
     _stopRecording() {
         if (this.recorderNode) {
             try { this.recorderNode.port.postMessage({ type: 'stop' }); } catch { /* ignore */ }
+            // disconnect() only cuts outgoing edges; explicitly cut the incoming
+            // outputNode -> recorderNode edge so outputNode doesn't accumulate
+            // dead connections across recording sessions.
+            if (this.outputNode) {
+                try { this.outputNode.disconnect(this.recorderNode); } catch { /* not connected */ }
+            }
             this.recorderNode.disconnect();
             this.recorderNode.port.onmessage = null;
             this.recorderNode = null;
@@ -237,6 +255,9 @@ export class AudioEngine {
             this.recorderSink = null;
         }
         if (this.recordingProcessor) {
+            if (this.outputNode) {
+                try { this.outputNode.disconnect(this.recordingProcessor); } catch { /* not connected */ }
+            }
             this.recordingProcessor.disconnect();
             this.recordingProcessor.onaudioprocess = null;
             this.recordingProcessor = null;
