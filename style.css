@@ -1,17 +1,47 @@
+/* ==========================================================================
+   BrowserDJ AI — Analog Precision Workstation (Model AP-808)
+   Vintage Studio Audio Hardware Aesthetic (Dieter Rams / Roland 808 / Akai MPC)
+   Zero AI Slop • Pure Industrial Tactile Rigor • Daylight High-Contrast
+   ========================================================================== */
+
 :root {
-    --bg-color: #050814;
-    --panel-color: #0c122c;
-    --border-color: #1e295d;
-    --accent-color: #00ffcc;
-    --accent-glow: rgba(0, 255, 204, 0.4);
-    --secondary-color: #bd00ff;
-    --secondary-glow: rgba(189, 0, 255, 0.3);
-    --danger-color: #ff0055;
-    --danger-glow: rgba(255, 0, 85, 0.4);
-    --text-color: #e2e8f0;
-    --text-muted: #64748b;
-    --font-heading: 'Orbitron', sans-serif;
-    --font-mono: 'Share Tech Mono', monospace;
+    /* Industrial Warmth Palette (Opaque Materials, Zero Glassmorphism) */
+    --desk-surface: #dcdad3;
+    --chassis-cream: #f4f1ea;
+    --chassis-subtle: #f9f7f2;
+    --chassis-metal: #ebe8e1;
+    --panel-border: #b8b5ac;
+    --panel-border-dark: #2d2d2d;
+    --panel-inset: #e2ded6;
+    --well-black: #1c1c18;
+    --well-dark-gray: #262622;
+    
+    /* Technical Silkscreen Inks */
+    --ink-black: #181919;
+    --ink-charcoal: #2d2d2d;
+    --ink-muted: #5f5e5e;
+    --ink-faint: #747878;
+
+    /* Indicator & Accent Colors (Hardware Incandescent & Enamel) */
+    --amber-led: #fea619;
+    --amber-led-glow: rgba(254, 166, 25, 0.85);
+    --amber-crt: #ffb95f;
+    --tr-red: #c0392b;
+    --tr-orange: #d35400;
+    --tr-yellow: #d4ac0d;
+    --tr-cream: #f4f1ea;
+    --led-off: #444748;
+
+    /* Typography */
+    --font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'Courier Prime', monospace;
+
+    /* Tactile Shadows & Insets */
+    --shadow-chassis: 0 16px 36px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.1);
+    --shadow-panel: 0 2px 4px rgba(0, 0, 0, 0.08), inset 1px 1px 0 rgba(255, 255, 255, 0.8);
+    --shadow-inset-track: inset 1px 2px 4px rgba(0, 0, 0, 0.65), inset -1px -1px 2px rgba(255, 255, 255, 0.2);
+    --shadow-button-lift: inset 1px 1px 0 rgba(255, 255, 255, 0.95), inset -1px -1px 0 rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
+    --shadow-button-pressed: inset 2px 2px 4px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 * {
@@ -21,488 +51,1008 @@
 }
 
 body {
-    font-family: var(--font-mono);
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    font-family: var(--font-sans);
+    background-color: var(--desk-surface);
+    background-image: 
+        radial-gradient(circle at 10px 10px, rgba(0, 0, 0, 0.025) 2px, transparent 2.5px),
+        radial-gradient(circle at 30px 30px, rgba(0, 0, 0, 0.015) 1px, transparent 1.5px);
+    background-size: 40px 40px;
+    color: var(--ink-charcoal);
+    min-height: 100vh;
     display: flex;
     justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    overflow: hidden;
-    /* Soft cyber grid background */
-    background-image: 
-        linear-gradient(rgba(30, 41, 93, 0.1) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(30, 41, 93, 0.1) 1px, transparent 1px);
-    background-size: 30px 30px;
+    align-items: flex-start;
+    padding: 24px 16px 48px 16px;
+    overflow-y: auto;
 }
 
-#app-container {
-    width: 95vw;
-    max-width: 1200px;
-    height: 90vh;
-    background-color: var(--panel-color);
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 15px var(--secondary-glow);
-    display: flex;
-    flex-direction: column;
-    padding: 25px;
+/* ==========================================================================
+   Outer Chassis Container & Mechanical Details
+   ========================================================================== */
+
+.chassis-outer {
+    width: 100%;
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+.hardware-chassis {
+    background-color: var(--chassis-cream);
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    box-shadow: var(--shadow-chassis);
+    padding: 28px 24px 24px 24px;
     position: relative;
-    overflow: hidden;
+    display: flex;
+    flex-col: column;
+    gap: 20px;
+    flex-direction: column;
 }
 
-#app-container::before {
+/* Corner Screws (Real Machined Hardware Slot) */
+.screw-head {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c4c7c7 0%, #858989 50%, #5f6363 100%);
+    box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.7), 0 1px 2px rgba(0, 0, 0, 0.35);
+    position: absolute;
+    z-index: 10;
+}
+
+.screw-head::after {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent-color), var(--secondary-color));
+    top: 50%;
+    left: 15%;
+    right: 15%;
+    height: 1.5px;
+    background-color: #1c1c18;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    transform: translateY(-50%) rotate(45deg);
 }
 
-header {
+.screw-tl { top: 10px; left: 10px; }
+.screw-tr { top: 10px; right: 10px; }
+.screw-bl { bottom: 10px; left: 10px; }
+.screw-br { bottom: 10px; right: 10px; }
+
+/* ==========================================================================
+   Header: Brushed Aluminum Faceplate
+   ========================================================================== */
+
+.chassis-header {
+    background: linear-gradient(180deg, #faf8f5 0%, #ebe8e1 40%, #dedbd4 100%);
+    border: 1px solid var(--panel-border-dark);
+    border-radius: 4px;
+    padding: 14px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 15px;
-    margin-bottom: 20px;
+    box-shadow: inset 0 1px 0 #ffffff, 0 2px 5px rgba(0, 0, 0, 0.08);
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
-h1 {
-    font-family: var(--font-heading);
-    font-size: 1.8rem;
-    font-weight: 900;
-    letter-spacing: 2px;
-    text-shadow: 0 0 10px var(--accent-glow);
-    color: #ffffff;
+.header-left {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.model-badge {
+    display: flex;
+    align-items: baseline;
     gap: 10px;
 }
 
-.badge {
-    font-family: var(--font-heading);
-    background: linear-gradient(135deg, var(--accent-color), var(--secondary-color));
-    color: #000000;
-    font-size: 0.55em;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    box-shadow: 0 0 10px var(--accent-glow);
+.brand-name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--ink-black);
 }
 
-.metrics {
+.brand-model {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--tr-orange);
+    border: 1px solid var(--tr-orange);
+    padding: 1px 6px;
+    border-radius: 2px;
+    background: rgba(211, 84, 0, 0.06);
+}
+
+.unit-serial {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--ink-muted);
+}
+
+/* Telemetry Inset Panels */
+.header-status-panel {
     display: flex;
-    gap: 20px;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
-.metric-item {
-    font-family: var(--font-heading);
-    font-size: 0.85rem;
-    color: var(--text-color);
-    background-color: rgba(30, 41, 93, 0.3);
-    border: 1px solid var(--border-color);
-    padding: 6px 12px;
+.telemetry-box {
+    background: var(--panel-inset);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 5px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.telemetry-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+}
+
+.telemetry-value-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-black);
+}
+
+.status-text.mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-charcoal);
+}
+
+/* Physical LED Indicators */
+.led-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--led-off);
+    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.6);
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.led-indicator.active,
+.led-indicator.led-amber.active {
+    background-color: var(--amber-led);
+    box-shadow: 0 0 7px var(--amber-led-glow), inset 1px 1px 1px #ffffff;
+}
+
+/* Mechanical 3-Way Language Selector Bank [EN | ES | PT] */
+.locale-selector {
+    background: var(--panel-inset);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.locale-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.lang-switch-bank {
+    display: flex;
+    gap: 4px;
+}
+
+.lang-btn {
+    background: #ebe8e1;
+    border: 1px solid var(--panel-border-dark);
+    border-radius: 3px;
+    padding: 3px 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    box-shadow: var(--shadow-button-lift);
+    outline: none;
+    transition: all 0.08s ease;
+}
+
+.lang-btn:active {
+    transform: translateY(1px);
+    box-shadow: var(--shadow-button-pressed);
+}
+
+.lang-btn.active {
+    background: #dfdbd2;
+    border-color: var(--tr-orange);
+}
+
+.lang-led {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--led-off);
+    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.7);
+    transition: all 0.15s ease;
+}
+
+.lang-btn.active .lang-led {
+    background-color: var(--amber-led);
+    box-shadow: 0 0 6px var(--amber-led-glow), inset 1px 1px 1px #ffffff;
+}
+
+.lang-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-black);
+    letter-spacing: 0.05em;
+}
+
+/* Mechanical Transport Buttons */
+.header-transport-panel {
+    display: flex;
+    gap: 10px;
+}
+
+.switch-btn {
+    background: #f1eee7;
+    border: 1px solid var(--panel-border-dark);
     border-radius: 4px;
-    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s ease;
+    padding: 2px;
+    box-shadow: var(--shadow-button-lift);
+    cursor: pointer;
+    outline: none;
+    transition: all 0.1s ease;
 }
 
-#status-gpu {
-    color: var(--accent-color);
-    text-shadow: 0 0 5px var(--accent-glow);
+.switch-btn:active,
+.switch-btn.paused {
+    box-shadow: var(--shadow-button-pressed);
+    transform: translateY(2px);
+    background: #e2ded6;
 }
 
-#status-audio {
-    color: #ffb700;
-    text-shadow: 0 0 5px rgba(255, 183, 0, 0.3);
+.switch-cap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--ink-black);
 }
 
-#telemetry-worklet {
-    color: #00e5ff;
+.btn-icon {
+    font-size: 12px;
 }
 
-.dj-deck {
-    flex: 1;
+.switch-record .rec-dot {
+    color: #c0392b;
+    font-size: 14px;
+}
+
+.switch-record.recording {
+    background: #fde8e8;
+    border-color: #c0392b;
+}
+
+.switch-record.recording .rec-dot {
+    animation: blink-rec 1s infinite;
+}
+
+@keyframes blink-rec {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+}
+
+/* ==========================================================================
+   Modular Rack Structure
+   ========================================================================== */
+
+.modular-rack {
     display: grid;
-    grid-template-columns: 1.6fr 1fr 1fr;
-    gap: 25px;
-    margin-bottom: 20px;
-    min-height: 0; /* Important for scroll/flex sizing */
+    grid-template-columns: 1.6fr 1fr;
+    gap: 18px;
 }
 
-.visualizer-container {
-    background-color: #02040a;
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
-    overflow: hidden;
+@media (max-width: 1024px) {
+    .modular-rack {
+        grid-template-columns: 1fr;
+    }
+}
+
+.rack-module {
+    background: var(--chassis-subtle);
+    border: 1px solid var(--panel-border-dark);
+    border-radius: 4px;
+    padding: 16px;
     position: relative;
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
+    box-shadow: var(--shadow-panel);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
-.visualizer-container::after {
-    /* Retro CRT monitor grid overlay */
-    content: " ";
-    display: block;
+.module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 2px 24px 8px 24px;
+    position: relative;
+}
+
+.module-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ink-black);
+    text-transform: uppercase;
+}
+
+.module-code {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+    border: 1px solid var(--panel-border);
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: #ebe8e1;
+}
+
+.screw-mini-tl { top: 4px; left: 6px; width: 10px; height: 10px; }
+.screw-mini-tr { top: 4px; right: 6px; width: 10px; height: 10px; }
+
+/* ==========================================================================
+   Module 1: Oscilloscope CRT Display & Sequencer
+   ========================================================================== */
+
+.crt-bezel {
+    background: #11110f;
+    border: 3px solid #2d2d2a;
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.crt-screen {
+    background: var(--well-black);
+    border: 1px solid #33332c;
+    border-radius: 4px;
+    padding: 8px;
+    position: relative;
+    overflow: hidden;
+    height: 180px;
+    display: flex;
+    flex-direction: column;
+}
+
+.crt-scanlines {
     position: absolute;
-    top: 0; left: 0; bottom: 0; right: 0;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-    z-index: 2;
-    background-size: 100% 4px, 6px 100%;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     pointer-events: none;
+    background: linear-gradient(rgba(254, 166, 25, 0.025) 50%, rgba(0, 0, 0, 0.3) 50%);
+    background-size: 100% 4px;
+    z-index: 2;
 }
 
-canvas {
+.crt-meta-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--amber-crt);
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    z-index: 3;
+    opacity: 0.9;
+}
+
+.canvas-holder {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    height: 140px;
+}
+
+#oscilloscope {
     width: 100%;
     height: 100%;
     display: block;
 }
 
-.hardware-sliders {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    background: linear-gradient(145deg, #090f26, #0e163b);
-    border: 1px solid var(--border-color);
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+/* Roland TR-808 Style 16-Step Rhythm Sequencer */
+.sequencer-panel {
+    background: #ebe8e1;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 12px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-.slider-group {
+.sequencer-header-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.panel-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-charcoal);
+}
+
+.scale-info {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--ink-muted);
+}
+
+.tr808-sequencer {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.step-cluster {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    background: #dfdbd2;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #c9c5bc;
+}
+
+.step-cell {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.step-led-housing {
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.step-led {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--led-off);
+    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.7);
+    transition: all 0.05s ease;
+}
+
+.step-led.active {
+    background-color: var(--amber-led);
+    box-shadow: 0 0 8px var(--amber-led-glow), inset 1px 1px 1px #ffffff;
+}
+
+/* Authentic TR-808 Keycaps */
+.step-key {
+    width: 100%;
+    height: 32px;
+    border-radius: 3px;
+    border: 1px solid var(--panel-border-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow-button-lift);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    outline: none;
+    transition: all 0.05s ease;
+}
+
+.step-key:active {
+    transform: translateY(2px);
+    box-shadow: var(--shadow-button-pressed);
+}
+
+.key-red { background: var(--tr-red); color: #ffffff; }
+.key-orange { background: var(--tr-orange); color: #ffffff; }
+.key-yellow { background: var(--tr-yellow); color: #1c1c18; }
+.key-cream { background: var(--tr-cream); color: #1c1c18; }
+
+/* Channel Mute Switches (Rockers) */
+.channel-mute-strip {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #f1eee7;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 10px 14px;
+}
+
+.mute-strip-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-charcoal);
+    white-space: nowrap;
+}
+
+.mute-buttons-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.rocker-switch {
+    flex: 1;
+    min-width: 120px;
+    background: #e5e2db;
+    border: 1px solid var(--panel-border-dark);
+    border-radius: 3px;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: var(--shadow-button-lift);
+    transition: all 0.1s ease;
+}
+
+.rocker-switch:active {
+    transform: translateY(1px);
+    box-shadow: var(--shadow-button-pressed);
+}
+
+.rocker-led {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: var(--led-off);
+    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.7);
+    transition: all 0.2s ease;
+}
+
+.rocker-switch.active .rocker-led {
+    background-color: var(--amber-led);
+    box-shadow: 0 0 6px var(--amber-led-glow), inset 1px 1px 1px #fff;
+}
+
+.rocker-switch.muted {
+    background: #dcdad3;
+    border-color: #88857f;
+    box-shadow: var(--shadow-button-pressed);
+}
+
+.rocker-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--ink-charcoal);
+}
+
+/* ==========================================================================
+   Module 2: Master Mixer & Tactile Faders
+   ========================================================================== */
+
+.faders-deck {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    background: #f1eee7;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 16px 12px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.fader-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 10px;
 }
 
-.slider-label-row {
+.fader-header-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-charcoal);
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.fader-slot-area {
     display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 180px;
+}
+
+.scale-ticks {
+    display: flex;
+    flex-direction: column;
     justify-content: space-between;
-    font-size: 0.9rem;
-    font-weight: bold;
-    letter-spacing: 1px;
+    height: 150px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--ink-faint);
+    text-align: right;
+    user-select: none;
 }
 
-.slider-label-row label {
-    color: var(--text-muted);
+.slider-track-cutout {
+    width: 24px;
+    height: 170px;
+    background: var(--well-black);
+    border-radius: 4px;
+    box-shadow: var(--shadow-inset-track);
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.slider-label-row span {
-    color: var(--accent-color);
-    text-shadow: 0 0 5px var(--accent-glow);
-}
-
-/* Custom glowing sliders styling */
-input[type="range"] {
+/* Native Stylized Vertical Fader Input */
+.hardware-fader {
     -webkit-appearance: none;
     appearance: none;
-    width: 100%;
+    width: 150px;
+    height: 24px;
     background: transparent;
-    cursor: pointer;
+    cursor: ns-resize;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    transform: rotate(0deg);
+    margin: 0;
 }
 
-input[type="range"]:focus {
+.hardware-fader:focus {
     outline: none;
 }
 
-/* Track styles */
-input[type="range"]::-webkit-slider-runnable-track {
-    background: #090d22;
-    border: 1px solid var(--border-color);
-    height: 8px;
-    border-radius: 4px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-input[type="range"]::-moz-range-track {
-    background: #090d22;
-    border: 1px solid var(--border-color);
-    height: 8px;
-    border-radius: 4px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-/* Thumb styles */
-input[type="range"]::-webkit-slider-thumb {
+/* Fader Cap (Brushed Aluminum Block with Center Notch) */
+.hardware-fader::-webkit-slider-thumb {
     -webkit-appearance: none;
-    height: 24px;
-    width: 14px;
-    background: linear-gradient(180deg, var(--accent-color), #009977);
+    width: 28px;
+    height: 18px;
+    background: linear-gradient(90deg, #e5e2db 0%, #c4c7c7 50%, #b3b6b6 100%);
+    border: 1px solid #1c1c18;
+    border-radius: 2px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 1px 1px 0 #ffffff;
+    cursor: pointer;
+    position: relative;
+}
+
+.hardware-fader::-moz-range-thumb {
+    width: 28px;
+    height: 18px;
+    background: linear-gradient(90deg, #e5e2db 0%, #c4c7c7 50%, #b3b6b6 100%);
+    border: 1px solid #1c1c18;
+    border-radius: 2px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 1px 1px 0 #ffffff;
+    cursor: pointer;
+}
+
+.fader-readout {
+    background: var(--panel-inset);
+    border: 1px solid var(--panel-border);
     border-radius: 3px;
-    margin-top: -8px;
-    box-shadow: 0 0 10px var(--accent-glow);
-    border: 1px solid #ffffff33;
-    transition: all 0.1s ease;
+    padding: 4px 6px;
+    width: 100%;
+    text-align: center;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-input[type="range"]::-webkit-slider-thumb:hover {
-    filter: brightness(1.2);
-    box-shadow: 0 0 15px var(--accent-color);
-    transform: scaleY(1.1);
+.readout-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-black);
 }
 
-input[type="range"]::-moz-range-thumb {
-    height: 24px;
-    width: 14px;
-    background: linear-gradient(180deg, var(--accent-color), #009977);
+/* ==========================================================================
+   Bottom Rack: Machine Telemetry & AI Command Terminal
+   ========================================================================== */
+
+.bottom-rack {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 18px;
+}
+
+@media (max-width: 1024px) {
+    .bottom-rack {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Parameters Monitor Panel */
+.state-meters-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.meter-cell {
+    background: #ebe8e1;
+    border: 1px solid var(--panel-border);
     border-radius: 3px;
-    box-shadow: 0 0 10px var(--accent-glow);
-    border: 1px solid #ffffff33;
-    transition: all 0.1s ease;
-}
-
-input[type="range"]::-moz-range-thumb:hover {
-    filter: brightness(1.2);
-    box-shadow: 0 0 15px var(--accent-color);
-    transform: scaleY(1.1);
-}
-
-/* Console Command input & action buttons */
-.console-interface {
-    background: #090e24;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 20px;
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 2px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.sample-actions {
-    display: flex;
-    gap: 15px;
+.meter-cell-span {
+    grid-column: span 2;
 }
 
-.input-row {
+.meter-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+}
+
+.meter-val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-black);
+}
+
+.meter-val.highlight-amber {
+    color: var(--tr-orange);
+}
+
+/* Transition Progress (Analog Segment Bar) */
+.transition-meter-block {
+    margin-top: 4px;
+    background: #ebe8e1;
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 8px 10px;
     display: flex;
-    gap: 15px;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.transition-label-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--ink-charcoal);
+}
+
+.transition-val {
+    font-family: var(--font-mono);
+    color: var(--tr-orange);
+}
+
+.analog-segment-track {
+    height: 12px;
+    background: var(--well-black);
+    border-radius: 2px;
+    box-shadow: var(--shadow-inset-track);
+    overflow: hidden;
+    padding: 1px;
+}
+
+.analog-segment-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #d35400, #fea619);
+    box-shadow: 0 0 8px rgba(254, 166, 25, 0.6);
+    transition: width 0.15s ease-out;
+}
+
+/* ==========================================================================
+   AI Command Deck (Local Gemma 4)
+   ========================================================================== */
+
+/* Sound Bank Preset Buttons */
+.sound-banks-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.banks-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-charcoal);
+}
+
+.banks-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+@media (max-width: 640px) {
+    .banks-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.bank-key {
+    background: #ebe8e1;
+    border: 1px solid var(--panel-border-dark);
+    border-radius: 3px;
+    padding: 7px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-charcoal);
+    cursor: pointer;
+    box-shadow: var(--shadow-button-lift);
+    text-align: center;
+    outline: none;
+    transition: all 0.08s ease;
+}
+
+.bank-key:active {
+    transform: translateY(1px);
+    box-shadow: var(--shadow-button-pressed);
+    background: #dfdbd2;
+}
+
+.bank-key:hover {
+    border-color: var(--tr-orange);
+    color: var(--ink-black);
+}
+
+/* Terminal Input Bar */
+.terminal-input-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.lcd-input-well {
+    flex: 1;
+    background: var(--well-black);
+    border: 1px solid #3d3d35;
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: inset 1px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.prompt-symbol {
+    font-family: var(--font-mono);
+    color: var(--amber-led);
+    font-weight: 700;
+    font-size: 14px;
 }
 
 #prompt-input {
     flex: 1;
-    background-color: #030616;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 14px 20px;
-    font-family: var(--font-mono);
-    font-size: 1.05rem;
-    color: var(--accent-color);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
-    transition: all 0.3s ease;
-}
-
-#prompt-input:focus {
+    background: transparent;
+    border: none;
     outline: none;
-    border-color: var(--accent-color);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 8px var(--accent-glow);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #fdfaf2;
 }
 
 #prompt-input::placeholder {
-    color: #3b4b8a;
+    color: #747878;
+    font-size: 11px;
 }
 
-#prompt-input:disabled {
-    background-color: #02040b;
-    border-color: #101535;
-    color: #212c60;
-    cursor: not-allowed;
+.key-indicator {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--amber-crt);
+    opacity: 0.8;
 }
 
-/* Cyber Buttons */
-.cyber-btn {
-    font-family: var(--font-heading);
-    font-weight: 700;
-    letter-spacing: 1px;
-    font-size: 0.9rem;
-    border-radius: 6px;
-    padding: 12px 24px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: 1px solid transparent;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, var(--accent-color), #00b3ff);
-    color: #000000;
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-}
-
-.btn-primary:hover:not(:disabled) {
-    box-shadow: 0 0 18px var(--accent-color);
-    transform: translateY(-1px);
-    filter: brightness(1.1);
-}
-
-.btn-primary:disabled {
-    background: #11223a;
-    border-color: #1a3356;
-    color: #335d88;
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-.btn-secondary {
-    background-color: #121e4a;
-    border-color: var(--border-color);
-    color: #ffffff;
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background-color: #1b2d70;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
-}
-
-.btn-danger {
-    background-color: #2b0b23;
-    border-color: #7c124a;
-    color: var(--danger-color);
-    box-shadow: 0 0 8px rgba(255, 0, 85, 0.15);
-}
-
-.btn-danger:hover:not(:disabled) {
-    background-color: var(--danger-color);
-    color: #ffffff;
-    border-color: #ff6699;
-    box-shadow: 0 0 18px var(--danger-color);
-}
-
-.btn-danger.recording {
-    background-color: var(--danger-color);
-    color: #ffffff;
-    border-color: #ff6699;
-    box-shadow: 0 0 20px var(--danger-color);
-    animation: recordingPulse 1.5s infinite;
-}
-
-@keyframes recordingPulse {
-    0% { filter: brightness(1); }
-    50% { filter: brightness(1.3); transform: scale(1.02); }
-    100% { filter: brightness(1); }
-}
-
-.state-monitor {
-    background: linear-gradient(145deg, #060a1f, #090e2b);
-    border: 1px solid var(--border-color);
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    overflow-y: auto;
-    font-family: var(--font-heading);
-}
-
-.panel-title {
-    font-size: 0.95rem;
-    color: var(--secondary-color);
-    text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
-    letter-spacing: 2px;
-    margin: 0;
-    padding-bottom: 8px;
-    border-bottom: 1px dashed var(--border-color);
-}
-
-.state-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.state-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: rgba(30, 41, 93, 0.2);
-    border: 1px solid rgba(0, 229, 255, 0.15);
-    padding: 8px 12px;
+.execute-btn {
+    background: var(--tr-orange);
+    border: 1px solid var(--panel-border-dark);
     border-radius: 4px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    box-shadow: var(--shadow-button-lift);
+    outline: none;
+    transition: all 0.1s ease;
 }
 
-.state-label {
-    font-size: 0.72rem;
-    color: var(--text-muted);
+.execute-btn:active {
+    transform: translateY(2px);
+    box-shadow: var(--shadow-button-pressed);
 }
 
-.state-value {
-    font-size: 0.82rem;
-    color: var(--accent-color);
-    text-shadow: 0 0 5px var(--accent-glow);
-    font-weight: bold;
+.execute-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #747878;
 }
 
-.history-divider {
-    border-bottom: 1px dashed var(--border-color);
+/* Thermal Printer Log / Audit Tape */
+.thermal-log-box {
+    background: #fdfaf5;
+    border: 1px dashed var(--panel-border);
+    border-radius: 3px;
+    padding: 8px 12px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.history-title {
-    font-size: 0.82rem;
-    color: var(--accent-color);
-    letter-spacing: 1.5px;
-    margin: 0;
+.log-title-row {
+    border-bottom: 1px dashed var(--panel-border);
+    padding-bottom: 4px;
+    margin-bottom: 6px;
 }
 
-.history-feed {
-    flex: 1;
+.log-header-text {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+}
+
+.log-feed {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    overflow-y: auto;
-    max-height: 140px;
-    padding-right: 5px;
-}
-
-.history-feed::-webkit-scrollbar {
-    width: 4px;
-}
-.history-feed::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-}
-.history-feed::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 2px;
+    gap: 4px;
 }
 
 .history-item {
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-size: 0.72rem;
-    border-left: 3px solid var(--accent-color);
-    background-color: rgba(30, 41, 93, 0.15);
-}
-
-.history-item.system {
-    border-left-color: var(--secondary-color);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
 }
 
 .history-prompt {
-    display: block;
-    color: #ffffff;
-    font-weight: bold;
-    margin-bottom: 2px;
+    color: var(--ink-black);
+    font-weight: 700;
 }
 
 .history-result {
-    display: block;
-    color: var(--text-muted);
-    font-size: 0.68rem;
-}
-
-/* Utilities */
-@media(max-width: 768px) {
-    .dj-deck {
-        grid-template-columns: 1fr;
-    }
-    #app-container {
-        height: auto;
-        min-height: 90vh;
-    }
+    color: #27ae60;
+    font-size: 10px;
 }

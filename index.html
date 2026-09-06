@@ -3,114 +3,464 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrowserDJ AI - On-Device Composer & DJ Deck</title>
+    <title>BrowserDJ AI — Analog Precision Workstation (Model AP-808)</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Google Fonts for premium cyberpunk typography -->
+    <!-- Google Fonts: Hanken Grotesk (DIN Style) & Courier Prime (Technical Data) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="app-container">
-        <header>
-            <h1>🎛️ BrowserDJ <span class="badge">AI OFFLINE</span></h1>
-            <div class="metrics">
-                <span id="status-gpu" class="metric-item">GPU: Iniciando...</span>
-                <span id="status-audio" class="metric-item">Audio: Inactivo</span>
-                <span id="telemetry-worklet" class="metric-item">DSP Load: 0%</span>
-            </div>
-        </header>
-        
-        <main class="dj-deck">
-            <!-- Visualizer screen (Oscilloscope / Spectrum) -->
-            <section class="visualizer-container">
-                <canvas id="oscilloscope"></canvas>
-            </section>
-            
-            <!-- Analog Hardware Sliders -->
-            <section class="hardware-sliders">
-                <div class="slider-group">
-                    <div class="slider-label-row">
-                        <label for="slider-vol">MASTER VOL</label>
-                        <span id="val-vol">80%</span>
+    <div class="chassis-outer">
+        <!-- Main Hardware Chassis Frame with Screws -->
+        <div class="hardware-chassis">
+            <!-- Corner Screws -->
+            <div class="screw-head screw-tl" title="Montaje Chasis"></div>
+            <div class="screw-head screw-tr" title="Montaje Chasis"></div>
+            <div class="screw-head screw-bl" title="Montaje Chasis"></div>
+            <div class="screw-head screw-br" title="Montaje Chasis"></div>
+
+            <!-- Top Header Plate: Brushed Aluminum Finish -->
+            <header class="chassis-header">
+                <div class="header-left">
+                    <div class="model-badge">
+                        <span class="brand-name">BROWSER·DJ</span>
+                        <span class="brand-model">ANALOG PRECISION // AP-808</span>
                     </div>
-                    <input type="range" id="slider-vol" min="0" max="1" step="0.01" value="0.8">
+                    <div class="unit-serial" data-i18n="unit_serial">SERIE V.01-UNIT // SAMPLER HI-FI DSP</div>
                 </div>
+
+                <!-- Hardware Status & Telemetry Indicators -->
+                <div class="header-status-panel">
+                    <div class="telemetry-box">
+                        <span class="telemetry-label" data-i18n="telemetry_power">ALIMENTACIÓN / GPU</span>
+                        <div class="telemetry-value-row">
+                            <span class="led-indicator led-amber" id="led-gpu"></span>
+                            <span id="status-gpu" class="status-text">WebGPU: En espera</span>
+                        </div>
+                    </div>
+                    <div class="telemetry-box">
+                        <span class="telemetry-label" data-i18n="telemetry_audio">MOTOR DE AUDIO</span>
+                        <div class="telemetry-value-row">
+                            <span class="led-indicator" id="led-audio"></span>
+                            <span id="status-audio" class="status-text">Audio: Inactivo</span>
+                        </div>
+                    </div>
+                    <div class="telemetry-box dsp-box">
+                        <span class="telemetry-label" data-i18n="telemetry_workload">CARGA DSP</span>
+                        <span id="telemetry-worklet" class="status-text mono">DSP Load: 0%</span>
+                    </div>
+                </div>
+
+                <!-- Mechanical 3-Way Language Selector [EN | ES | PT] -->
+                <div class="locale-selector">
+                    <span class="locale-label" data-i18n="locale_label">IDIOMA // LOCALE</span>
+                    <div class="lang-switch-bank">
+                        <button class="lang-btn" data-lang="en" title="Switch to English">
+                            <span class="lang-led"></span>
+                            <span class="lang-text">EN</span>
+                        </button>
+                        <button class="lang-btn active" data-lang="es" title="Cambiar a Español">
+                            <span class="lang-led"></span>
+                            <span class="lang-text">ES</span>
+                        </button>
+                        <button class="lang-btn" data-lang="pt" title="Mudar para Português">
+                            <span class="lang-led"></span>
+                            <span class="lang-text">PT</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Physical Transport Control Switches -->
+                <div class="header-transport-panel">
+                    <button id="btn-play" class="switch-btn switch-play" title="Iniciar / Pausar Secuenciador">
+                        <span class="switch-cap">
+                            <span class="btn-icon">⏸</span>
+                            <span class="btn-text" data-i18n="transport_pause">PAUSA</span>
+                        </span>
+                    </button>
+                    <button id="btn-load-samples" class="switch-btn switch-samples" title="Cargar Muestras WAV Locales">
+                        <span class="switch-cap">
+                            <span class="btn-icon">⏏</span>
+                            <span class="btn-text" data-i18n="transport_samples">SAMPLES</span>
+                        </span>
+                    </button>
+                    <button id="btn-record" class="switch-btn switch-record" title="Grabar Salida de Audio a WAV">
+                        <span class="switch-cap">
+                            <span class="btn-icon rec-dot">●</span>
+                            <span class="btn-text" data-i18n="transport_rec">REC MIX</span>
+                        </span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Workspace: Modular Rack Architecture -->
+            <main class="modular-rack">
                 
-                <div class="slider-group">
-                    <div class="slider-label-row">
-                        <label for="slider-cutoff">SYNTH CUTOFF</label>
-                        <span id="val-cutoff">2000 Hz</span>
+                <!-- Left Rack: Visualizer CRT & 16-Step Rhythm Sequencer -->
+                <section class="rack-module module-scope-seq">
+                    <div class="module-header">
+                        <div class="screw-head screw-mini-tl"></div>
+                        <div class="screw-head screw-mini-tr"></div>
+                        <span class="module-title" data-i18n="mod1_title">UNIDAD OSCILOSCOPIO Y SECUENCIADOR</span>
+                        <span class="module-code">MOD-01</span>
                     </div>
-                    <input type="range" id="slider-cutoff" min="100" max="8000" step="10" value="2000">
-                </div>
 
-                <div class="slider-group">
-                    <div class="slider-label-row">
-                        <label for="slider-len">LOOP LENGTH</label>
-                        <span id="val-len">16 Steps</span>
+                    <!-- CRT Amber Oscilloscope Display -->
+                    <div class="crt-bezel">
+                        <div class="crt-screen">
+                            <div class="crt-scanlines"></div>
+                            <div class="crt-meta-bar">
+                                <span class="crt-text" data-i18n="crt_sweep">BARRIDO: 44.1 kHz</span>
+                                <span class="crt-text" data-i18n="crt_mode">OSC VECTORIAL</span>
+                                <span class="crt-text" data-i18n="crt_mon">CANAL-1 MON</span>
+                            </div>
+                            <div class="canvas-holder">
+                                <canvas id="oscilloscope"></canvas>
+                            </div>
+                        </div>
                     </div>
-                    <input type="range" id="slider-len" min="4" max="32" step="4" value="16">
-                </div>
-            </section>
 
-            <!-- AI State Monitor & History -->
-            <section class="state-monitor">
-                <h3 class="panel-title">🧠 AI DECK STATE</h3>
+                    <!-- Roland TR-808 Style 16-Step Rhythm Sequencer -->
+                    <div class="sequencer-panel">
+                        <div class="sequencer-header-bar">
+                            <span class="panel-section-title" data-i18n="seq_clock_title">RELOJ MAESTRO DE 16 PASOS</span>
+                            <span class="scale-info" data-i18n="seq_division">DIVISIÓN 1/16 DE NOTA</span>
+                        </div>
+
+                        <div class="tr808-sequencer" id="step-sequencer">
+                            <!-- Group 1: Steps 01-04 (Red Keys) -->
+                            <div class="step-cluster cluster-red">
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="0"></span></div>
+                                    <button class="step-key key-red" data-step="0"><span class="step-num">01</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="1"></span></div>
+                                    <button class="step-key key-red" data-step="1"><span class="step-num">02</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="2"></span></div>
+                                    <button class="step-key key-red" data-step="2"><span class="step-num">03</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="3"></span></div>
+                                    <button class="step-key key-red" data-step="3"><span class="step-num">04</span></button>
+                                </div>
+                            </div>
+
+                            <!-- Group 2: Steps 05-08 (Orange Keys) -->
+                            <div class="step-cluster cluster-orange">
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="4"></span></div>
+                                    <button class="step-key key-orange" data-step="4"><span class="step-num">05</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="5"></span></div>
+                                    <button class="step-key key-orange" data-step="5"><span class="step-num">06</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="6"></span></div>
+                                    <button class="step-key key-orange" data-step="6"><span class="step-num">07</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="7"></span></div>
+                                    <button class="step-key key-orange" data-step="7"><span class="step-num">08</span></button>
+                                </div>
+                            </div>
+
+                            <!-- Group 3: Steps 09-12 (Yellow/Amber Keys) -->
+                            <div class="step-cluster cluster-yellow">
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="8"></span></div>
+                                    <button class="step-key key-yellow" data-step="8"><span class="step-num">09</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="9"></span></div>
+                                    <button class="step-key key-yellow" data-step="9"><span class="step-num">10</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="10"></span></div>
+                                    <button class="step-key key-yellow" data-step="10"><span class="step-num">11</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="11"></span></div>
+                                    <button class="step-key key-yellow" data-step="11"><span class="step-num">12</span></button>
+                                </div>
+                            </div>
+
+                            <!-- Group 4: Steps 13-16 (Cream/White Keys) -->
+                            <div class="step-cluster cluster-cream">
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="12"></span></div>
+                                    <button class="step-key key-cream" data-step="12"><span class="step-num">13</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="13"></span></div>
+                                    <button class="step-key key-cream" data-step="13"><span class="step-num">14</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="14"></span></div>
+                                    <button class="step-key key-cream" data-step="14"><span class="step-num">15</span></button>
+                                </div>
+                                <div class="step-cell">
+                                    <div class="step-led-housing"><span class="step-led" data-step="15"></span></div>
+                                    <button class="step-key key-cream" data-step="15"><span class="step-num">16</span></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Track Channel Mute Switches -->
+                    <div class="channel-mute-strip">
+                        <span class="mute-strip-label" data-i18n="mute_strip_label">MUTE // SOLO DE CANALES:</span>
+                        <div class="mute-buttons-group">
+                            <button id="btn-mute-kick" class="rocker-switch active" title="Alternar Bombo (Kick)">
+                                <span class="rocker-led"></span>
+                                <span class="rocker-label" data-i18n="mute_kick">KICK / BOMBO</span>
+                            </button>
+                            <button id="btn-mute-hats" class="rocker-switch active" title="Alternar Platillos (Hi-Hats)">
+                                <span class="rocker-led"></span>
+                                <span class="rocker-label" data-i18n="mute_hats">HATS / PLATILLO</span>
+                            </button>
+                            <button id="btn-mute-synth" class="rocker-switch active" title="Alternar Sintetizador Lead">
+                                <span class="rocker-led"></span>
+                                <span class="rocker-label" data-i18n="mute_synth">SYNTH / LEAD</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Right Rack: Tactile Master Fader Console -->
+                <section class="rack-module module-master-console">
+                    <div class="module-header">
+                        <div class="screw-head screw-mini-tl"></div>
+                        <div class="screw-head screw-mini-tr"></div>
+                        <span class="module-title" data-i18n="mod2_title">MEZCLADOR MAESTRO Y FILTROS ANALÓGICOS</span>
+                        <span class="module-code">MOD-02</span>
+                    </div>
+
+                    <div class="faders-deck">
+                        <!-- Fader 1: Volume -->
+                        <div class="fader-strip">
+                            <div class="fader-header-label" data-i18n="fader_vol">VOLUMEN</div>
+                            <div class="fader-slot-area">
+                                <div class="scale-ticks">
+                                    <span>+6</span>
+                                    <span>0</span>
+                                    <span>-6</span>
+                                    <span>-12</span>
+                                    <span>-∞</span>
+                                </div>
+                                <div class="slider-track-cutout">
+                                    <input type="range" id="slider-vol" class="hardware-fader" min="0" max="1" step="0.01" value="0.8">
+                                </div>
+                            </div>
+                            <div class="fader-readout">
+                                <span id="val-vol" class="readout-val">80%</span>
+                            </div>
+                        </div>
+
+                        <!-- Fader 2: Cutoff Filter -->
+                        <div class="fader-strip">
+                            <div class="fader-header-label" data-i18n="fader_cutoff">CORTE</div>
+                            <div class="fader-slot-area">
+                                <div class="scale-ticks">
+                                    <span>8k</span>
+                                    <span>4k</span>
+                                    <span>2k</span>
+                                    <span>800</span>
+                                    <span>100</span>
+                                </div>
+                                <div class="slider-track-cutout">
+                                    <input type="range" id="slider-cutoff" class="hardware-fader" min="100" max="8000" step="20" value="2000">
+                                </div>
+                            </div>
+                            <div class="fader-readout">
+                                <span id="val-cutoff" class="readout-val">2000 Hz</span>
+                            </div>
+                        </div>
+
+                        <!-- Fader 3: Reverb Depth -->
+                        <div class="fader-strip">
+                            <div class="fader-header-label" data-i18n="fader_reverb">REVERB</div>
+                            <div class="fader-slot-area">
+                                <div class="scale-ticks">
+                                    <span>100</span>
+                                    <span>75</span>
+                                    <span>50</span>
+                                    <span>25</span>
+                                    <span>0</span>
+                                </div>
+                                <div class="slider-track-cutout">
+                                    <input type="range" id="slider-reverb" class="hardware-fader" min="0" max="1" step="0.01" value="0.15">
+                                </div>
+                            </div>
+                            <div class="fader-readout">
+                                <span id="val-reverb" class="readout-val">15%</span>
+                            </div>
+                        </div>
+
+                        <!-- Fader 4: Delay Feedback -->
+                        <div class="fader-strip">
+                            <div class="fader-header-label" data-i18n="fader_delay">DELAY</div>
+                            <div class="fader-slot-area">
+                                <div class="scale-ticks">
+                                    <span>90</span>
+                                    <span>60</span>
+                                    <span>40</span>
+                                    <span>20</span>
+                                    <span>0</span>
+                                </div>
+                                <div class="slider-track-cutout">
+                                    <input type="range" id="slider-delay" class="hardware-fader" min="0" max="0.9" step="0.01" value="0.30">
+                                </div>
+                            </div>
+                            <div class="fader-readout">
+                                <span id="val-delay" class="readout-val">30%</span>
+                            </div>
+                        </div>
+
+                        <!-- Fader 5: Loop Length -->
+                        <div class="fader-strip">
+                            <div class="fader-header-label" data-i18n="fader_length">COMPÁS</div>
+                            <div class="fader-slot-area">
+                                <div class="scale-ticks">
+                                    <span>32</span>
+                                    <span>24</span>
+                                    <span>16</span>
+                                    <span>8</span>
+                                    <span>4</span>
+                                </div>
+                                <div class="slider-track-cutout">
+                                    <input type="range" id="slider-len" class="hardware-fader" min="4" max="32" step="4" value="16">
+                                </div>
+                            </div>
+                            <div class="fader-readout">
+                                <span id="val-len" class="readout-val">16 Pasos</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Bottom Rack: Machine Telemetry & AI Command Terminal -->
+            <footer class="bottom-rack">
                 
-                <div class="state-group">
-                    <div class="state-item">
-                        <span class="state-label">SCALE / KEY</span>
-                        <span id="state-scale" class="state-value">A minor</span>
+                <!-- Deck Hardware State & Metering Panel -->
+                <div class="rack-module module-deck-state">
+                    <div class="module-header">
+                        <div class="screw-head screw-mini-tl"></div>
+                        <div class="screw-head screw-mini-tr"></div>
+                        <span class="module-title" data-i18n="mod_metrics_title">MONITOR DE PARÁMETROS</span>
+                        <span class="module-code">DSP-METRICS</span>
                     </div>
-                    <div class="state-item">
-                        <span class="state-label">TEMPO</span>
-                        <span id="state-bpm" class="state-value">120 BPM</span>
+
+                    <div class="state-meters-grid">
+                        <div class="meter-cell">
+                            <span class="meter-tag" data-i18n="meter_scale">ESCALA / TONALIDAD</span>
+                            <span id="state-scale" class="meter-val">A menor</span>
+                        </div>
+                        <div class="meter-cell">
+                            <span class="meter-tag" data-i18n="meter_tempo">TEMPO (BPM)</span>
+                            <span id="state-bpm" class="meter-val highlight-amber">120 BPM</span>
+                        </div>
+                        <div class="meter-cell">
+                            <span class="meter-tag" data-i18n="meter_synth">ONDA SINTETIZADOR</span>
+                            <span id="state-synth" class="meter-val">Sierra (2000Hz)</span>
+                        </div>
+                        <div class="meter-cell">
+                            <span class="meter-tag" data-i18n="meter_drums">KIT PERCUSIÓN</span>
+                            <span id="state-drums" class="meter-val">Bombo + Platillo</span>
+                        </div>
+                        <div class="meter-cell meter-cell-span">
+                            <span class="meter-tag" data-i18n="meter_effects">ESPACIO FX</span>
+                            <span id="state-effects" class="meter-val">eco 30% / rev 15%</span>
+                        </div>
                     </div>
-                    <div class="state-item">
-                        <span class="state-label">SYNTH LEAD</span>
-                        <span id="state-synth" class="state-value">Sawtooth</span>
-                    </div>
-                    <div class="state-item">
-                        <span class="state-label">DRUM LAYER</span>
-                        <span id="state-drums" class="state-value">Kick + Hi-hat</span>
-                    </div>
-                    <div class="state-item">
-                        <span class="state-label">FX (DELAY / REVERB)</span>
-                        <span id="state-effects" class="state-value">Delay (30%)</span>
+
+                    <!-- Analog Segment Progress Bar for Morphing Transition -->
+                    <div class="transition-meter-block" id="morph-container">
+                        <div class="transition-label-row">
+                            <span class="transition-title" data-i18n="meter_morph">PROGRESO DE TRANSICIÓN</span>
+                            <span class="transition-val" id="morph-val">0%</span>
+                        </div>
+                        <div class="analog-segment-track">
+                            <div class="analog-segment-fill" id="morph-bar"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="history-divider"></div>
-                <h4 class="history-title">📜 PROMPT FEED</h4>
-                <div id="prompt-history" class="history-feed">
-                    <div class="history-item system">
-                        <span class="history-prompt">Sistema iniciado</span>
-                        <span class="history-result">✓ Groove por defecto cargado</span>
+                <!-- AI Prompt Terminal & Memory Banks -->
+                <div class="rack-module module-ai-terminal">
+                    <div class="module-header">
+                        <div class="screw-head screw-mini-tl"></div>
+                        <div class="screw-head screw-mini-tr"></div>
+                        <span class="module-title" data-i18n="mod_ai_title">CENTRO DE COMANDOS IA // GEMMA 4 LOCAL</span>
+                        <span class="module-code">PROMPT-DSP</span>
+                    </div>
+
+                    <!-- Sound Bank Selector (Presets) -->
+                    <div class="sound-banks-row">
+                        <span class="banks-label" data-i18n="preset_banks_label">BANCOS DE PRESETS:</span>
+                        <div class="banks-buttons" id="banks-buttons">
+                            <button class="chip-btn bank-key" data-preset-id="01" data-prompt="ritmo techno oscuro a 135 bpm con onda cuadrada y mucho reverb">
+                                01: TECHNO 135
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="02" data-prompt="house melódico y bailable a 124 bpm con swing">
+                                02: DEEP HOUSE
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="03" data-prompt="synthwave retro 80s con onda de sierra y delay al 50%">
+                                03: SYNTHWAVE
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="04" data-prompt="ritmo lo-fi chill relajante a 85 bpm con filtro cálido">
+                                04: LO-FI CHILL
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="05" data-prompt="ritmo de reggaeton dembow bailable a 96 bpm">
+                                05: REGGAETÓN
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="06" data-prompt="línea de bajo acid techno 303 a 136 bpm con resonancia y onda cuadrada">
+                                06: ACID 303
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="07" data-prompt="haz un drop épico con redoble y explosión en 32 pasos">
+                                07: BUILD &amp; DROP
+                            </button>
+                            <button class="chip-btn bank-key" data-preset-id="08" data-prompt="quita la batería y deja solo el sintetizador">
+                                08: SOLO SYNTH
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Command Input Bar -->
+                    <div class="terminal-input-bar">
+                        <div class="lcd-input-well">
+                            <span class="prompt-symbol">&gt;</span>
+                            <input type="text" id="prompt-input" disabled 
+                                data-i18n-placeholder="prompt_placeholder"
+                                placeholder="Ingresa comando en lenguaje natural (ej. 'techno a 135 bpm con onda cuadrada')...">
+                            <span class="key-indicator">[ENTER]</span>
+                        </div>
+                        <button id="btn-send-prompt" class="execute-btn" disabled>
+                            <span data-i18n="btn_execute">EJECUTAR</span>
+                            <span class="btn-arrow">↵</span>
+                        </button>
+                    </div>
+
+                    <!-- Thermal Paper Log / Feed -->
+                    <div class="thermal-log-box">
+                        <div class="log-title-row">
+                            <span class="log-header-text" data-i18n="log_header">REGISTRO Y CINTA DE AUDITORÍA:</span>
+                        </div>
+                        <div id="prompt-history" class="log-feed">
+                            <div class="history-item system">
+                                <span class="history-prompt" data-i18n="log_init_prompt">SYS_INIT // BOOT_OK</span>
+                                <span class="history-result" data-i18n="log_init_result">✓ Patrón predeterminado cargado a 120 BPM</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </section>
-        </main>
-        
-        <!-- Bottom Console Command Center -->
-        <section class="console-interface">
-            <div class="sample-actions">
-                <button id="btn-load-samples" class="cyber-btn btn-secondary">
-                    📂 Cargar Samples Locales
-                </button>
-                <button id="btn-record" class="cyber-btn btn-danger">
-                    🔴 Grabar Mix
-                </button>
-            </div>
-            
-            <div class="input-row">
-                <input type="text" id="prompt-input" disabled 
-                    placeholder="Escribe tu comando musical en español/inglés (ej. 'beat synthwave rápido 135 bpm con mucho delay')...">
-                <button id="btn-send-prompt" class="cyber-btn btn-primary" disabled>
-                    Enviar Comando
-                </button>
-            </div>
-        </section>
+            </footer>
+        </div>
     </div>
     
     <script type="module" src="./js/app.js"></script>

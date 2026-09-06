@@ -21,7 +21,10 @@ export class WebRenderer {
         this.synthSequence = Array(16).fill(0);
         this.synthWaveType = 'saw';
         this.filterResonance = 1.0;
+        this.cutoffFrequency = 2000; // persistent filter cutoff frequency
         this.delayFeedback = 0.3;
+        this.reverbMix = 0.15;
+        this.isPlaying = true; // playback state
         this.useCustomSample = false;
         this.sampleName = '';
         this.adsr = [0.01, 0.15, 0.7, 0.2]; // default A, D, S, R
@@ -34,6 +37,8 @@ export class WebRenderer {
         this.delayFeedbackNode = null;
         this.delayDryNode = null;
         this.delayWetNode = null;
+        this.reverbConvolverNode = null;
+        this.reverbWetNode = null;
         this.synthFilter = null;
 
         // Sequencer Clock state
@@ -88,6 +93,28 @@ export class WebRenderer {
         this.delayWetNode.gain.setValueAtTime(0.3, this.ctx.currentTime); // wet mix level
         this.delayNode.delayTime.setValueAtTime(0.3, this.ctx.currentTime); // 300ms delay
         this.delayFeedbackNode.gain.setValueAtTime(0.3, this.ctx.currentTime);
+
+        // Create Reverb FX chain (stereo convolution with synthetic impulse response)
+        this.reverbWetNode = this.ctx.createGain();
+        this.reverbWetNode.gain.setValueAtTime(this.reverbMix, this.ctx.currentTime);
+        this.reverbConvolverNode = this.ctx.createConvolver();
+
+        const sampleRate = this.ctx.sampleRate;
+        const decayTime = 2.0;
+        const irLength = Math.floor(sampleRate * decayTime);
+        const impulseBuffer = this.ctx.createBuffer(2, irLength, sampleRate);
+        const leftChannel = impulseBuffer.getChannelData(0);
+        const rightChannel = impulseBuffer.getChannelData(1);
+
+        for (let i = 0; i < irLength; i++) {
+            const t = i / sampleRate;
+            const decay = Math.exp(-t * 3.5);
+            leftChannel[i] = (Math.random() * 2 - 1) * decay;
+            rightChannel[i] = (Math.random() * 2 - 1) * decay;
+        }
+        this.reverbConvolverNode.buffer = impulseBuffer;
+        this.reverbConvolverNode.connect(this.reverbWetNode);
+        this.reverbWetNode.connect(this.outputNode);
 
         // Start scheduling clock
         this.nextStepTime = this.ctx.currentTime + 0.1;
@@ -155,12 +182,22 @@ export class WebRenderer {
             if (props.res !== undefined) {
                 this.filterResonance = props.res;
             }
+            if (props.cutoff !== undefined) {
+                if (typeof props.cutoff === 'number') {
+                    this.cutoffFrequency = props.cutoff;
+                } else if (props.cutoff instanceof Node && props.cutoff.props && typeof props.cutoff.props.value === 'number') {
+                    this.cutoffFrequency = props.cutoff.props.value;
+                }
+            }
         }
 
-        // Extract Synth Wave Type (saw vs. cycle/sine)
+        // Extract Synth Wave Type (square vs. saw vs. cycle/sine)
+        const squareNodes = this.findNodesByType(leftGraph, 'square');
         const sawNodes = this.findNodesByType(leftGraph, 'saw');
         const cycleNodes = this.findNodesByType(leftGraph, 'cycle');
-        if (sawNodes.length > 0) {
+        if (squareNodes.length > 0) {
+            this.synthWaveType = 'square';
+        } else if (sawNodes.length > 0) {
             this.synthWaveType = 'saw';
         } else if (cycleNodes.length > 0) {
             this.synthWaveType = 'cycle';
@@ -178,6 +215,15 @@ export class WebRenderer {
             // Update delay feedback instantly
             if (this.delayFeedbackNode) {
                 this.delayFeedbackNode.gain.setValueAtTime(this.delayFeedback, this.ctx.currentTime);
+            }
+        }
+
+        // Extract Reverb mix
+        const reverbNodes = this.findNodesByType(leftGraph, 'reverb');
+        if (reverbNodes.length > 0 && typeof reverbNodes[0].props.mix === 'number') {
+            this.reverbMix = reverbNodes[0].props.mix;
+            if (this.reverbWetNode) {
+                this.reverbWetNode.gain.setValueAtTime(this.reverbMix, this.ctx.currentTime);
             }
         }
     }
@@ -246,6 +292,8 @@ export class WebRenderer {
     }
 
     scheduleStep(step, time) {
+        if (!this.isPlaying) return;
+
         const stepDuration = 60.0 / this.bpm / 4.0;
 
         let kickActive = this.kickPattern.length > 0 ? this.kickPattern[step % this.kickPattern.length] : 0;
@@ -258,9 +306,9 @@ export class WebRenderer {
             const t = Math.min(1.0, this.transition.current_step / this.transition.total_steps);
 
             // 1. Interpolate Biquad Filter Cutoff Frequency
-            const currentCutoff = this.transition.start_cutoff + t * (this.transition.target_cutoff - this.transition.start_cutoff);
+            this.cutoffFrequency = this.transition.start_cutoff + t * (this.transition.target_cutoff - this.transition.start_cutoff);
             if (this.synthFilter) {
-                this.synthFilter.frequency.setValueAtTime(currentCutoff, time);
+                this.synthFilter.frequency.setValueAtTime(this.cutoffFrequency, time);
             }
 
             // 2. Scale Shift / Key Transposition (trigger at 50% progress)
@@ -268,6 +316,9 @@ export class WebRenderer {
                 const targetKey = this.transition.target_scale;
                 const newSequence = this.generateScaleMelody(targetKey.replace("m", ""), !targetKey.endsWith("m"));
                 midiNote = newSequence[step % newSequence.length];
+                if (t >= 1.0) {
+                    this.synthSequence = newSequence;
+                }
             }
 
             // 3. Drum Exploding Climax Build (Accelerating roll on last steps)
@@ -291,9 +342,16 @@ export class WebRenderer {
                 }
             }
 
-            // Deactivate transition on completion
+            // Deactivate transition on completion and persist target properties
             if (t >= 1.0) {
                 this.transition.active = false;
+                if (this.transition.target_cutoff) {
+                    this.cutoffFrequency = this.transition.target_cutoff;
+                }
+                if (this.transition.target_scale) {
+                    const targetKey = this.transition.target_scale;
+                    this.synthSequence = this.generateScaleMelody(targetKey.replace("m", ""), !targetKey.endsWith("m"));
+                }
             }
         }
 
@@ -327,6 +385,9 @@ export class WebRenderer {
         osc.connect(gain);
         gain.connect(this.delayDryNode);
         gain.connect(this.delayNode);
+        if (this.reverbConvolverNode) {
+            gain.connect(this.reverbConvolverNode);
+        }
 
         // Pitch envelope
         osc.frequency.setValueAtTime(150, time);
@@ -360,6 +421,9 @@ export class WebRenderer {
         filter.connect(gain);
         gain.connect(this.delayDryNode);
         gain.connect(this.delayNode);
+        if (this.reverbConvolverNode) {
+            gain.connect(this.reverbConvolverNode);
+        }
 
         gain.gain.setValueAtTime(0.25, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
@@ -373,7 +437,8 @@ export class WebRenderer {
      */
     playSynthNote(midiNote, time, duration) {
         const osc = this.ctx.createOscillator();
-        osc.type = this.synthWaveType === 'saw' ? 'sawtooth' : 'sine';
+        osc.type = this.synthWaveType === 'saw' ? 'sawtooth' : 
+                   this.synthWaveType === 'square' ? 'square' : 'sine';
 
         // Frequency mapping
         const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -382,9 +447,8 @@ export class WebRenderer {
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
         
-        // Read manual/dynamic cutoff setting
-        const currentCutoff = this.synthFilter ? this.synthFilter.frequency.value : 2000;
-        filter.frequency.setValueAtTime(currentCutoff, time);
+        // Read persistent cutoff setting
+        filter.frequency.setValueAtTime(this.cutoffFrequency, time);
         filter.Q.setValueAtTime(this.filterResonance, time);
         
         // Cache node for manual updates
@@ -396,6 +460,9 @@ export class WebRenderer {
         filter.connect(gain);
         gain.connect(this.delayDryNode);
         gain.connect(this.delayNode);
+        if (this.reverbConvolverNode) {
+            gain.connect(this.reverbConvolverNode);
+        }
 
         // Apply ADSR Envelope
         let a = this.adsr[0];
@@ -440,9 +507,25 @@ export class WebRenderer {
         source.connect(gain);
         gain.connect(this.delayDryNode);
         gain.connect(this.delayNode);
+        if (this.reverbConvolverNode) {
+            gain.connect(this.reverbConvolverNode);
+        }
 
         gain.gain.setValueAtTime(0.9, time);
 
         source.start(time);
+    }
+
+    play() {
+        this.isPlaying = true;
+    }
+
+    pause() {
+        this.isPlaying = false;
+    }
+
+    togglePlay() {
+        this.isPlaying = !this.isPlaying;
+        return this.isPlaying;
     }
 }

@@ -44,9 +44,12 @@ export class AudioEngine {
 
     set manualCutoff(val) {
         this._manualCutoff = val;
-        if (this.core && this.core.synthFilter) {
-            // Update lowpass filter cutoff frequency dynamically
-            this.core.synthFilter.frequency.setValueAtTime(val, this.ctx.currentTime);
+        if (this.core) {
+            this.core.cutoffFrequency = val;
+            if (this.core.synthFilter) {
+                // Update lowpass filter cutoff frequency dynamically
+                this.core.synthFilter.frequency.setValueAtTime(val, this.ctx.currentTime);
+            }
         }
     }
 
@@ -58,6 +61,23 @@ export class AudioEngine {
         if (this.core) {
             this.core.loopLength = val;
         }
+    }
+
+    get isPlaying() {
+        return this.core ? this.core.isPlaying : true;
+    }
+
+    play() {
+        if (this.core) this.core.play();
+    }
+
+    pause() {
+        if (this.core) this.core.pause();
+    }
+
+    togglePlay() {
+        if (this.core) return this.core.togglePlay();
+        return false;
     }
 
     /**
@@ -123,13 +143,21 @@ export class AudioEngine {
 
         const noteSeq = el.seq2({ seq: synth.notes_sequence, hold: true }, clock);
         const hz = el.mtof(noteSeq);
-        let oscillator = synth.wave_type === 'saw' ? el.saw(hz) : el.cycle(hz);
+        let oscillator;
+        if (synth.wave_type === 'saw') {
+            oscillator = el.saw(hz);
+        } else if (synth.wave_type === 'square') {
+            oscillator = el.square(hz);
+        } else {
+            oscillator = el.cycle(hz);
+        }
         const env = el.adsr(synth.adsr[0], synth.adsr[1], synth.adsr[2], synth.adsr[3], noteSeq);
         const filteredSynth = el.svf({ mode: 'lowpass', cutoff: dynamicCutoff, res: synth.filter_resonance }, el.mul(oscillator, env));
 
         const rawMix = el.add(rhythmSection, el.mul(filteredSynth, 0.5));
         const delayedSignal = el.delay({ size: 44100 }, el.ms2smp(300), fx.delay_feedback, rawMix);
-        const finalOutput = el.mul(el.add(rawMix, el.mul(delayedSignal, 0.3)), masterGain);
+        const reverbedSignal = el.reverb({ mix: fx.reverb_mix !== undefined ? fx.reverb_mix : 0.15 }, rawMix);
+        const finalOutput = el.mul(el.add(rawMix, el.mul(delayedSignal, 0.3), reverbedSignal), masterGain);
 
         // Set the active transition schedule inside the core renderer clock
         if (config.transition) {

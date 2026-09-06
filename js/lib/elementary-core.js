@@ -23,8 +23,14 @@ export const el = {
     saw(hz) {
         return new Node('saw', {}, [hz]);
     },
+    square(hz) {
+        return new Node('square', {}, [hz]);
+    },
     noise() {
         return new Node('noise', {}, []);
+    },
+    reverb(props = {}, input) {
+        return new Node('reverb', props, [input]);
     },
     metro(props = {}) {
         return new Node('metro', props, []);
