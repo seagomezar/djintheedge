@@ -20,6 +20,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "fast-check": "^4.10.2",
+    "happy-dom": "^20.14.5",
     "vite": "^5.0.0",
     "vitest": "^1.0.0"
   }

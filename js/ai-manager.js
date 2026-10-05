@@ -220,11 +220,11 @@ export function parsePromptToDSP(prompt, currentState = null) {
     if (bpmMatch) {
         bpm = parseInt(bpmMatch[1]);
     } else {
-        // Relative tempo changes
-        if (text.includes("más rápido") || text.includes("mas rapido") || text.includes("mais rápido") || text.includes("mais rapido") || text.includes("acelera") || text.includes("faster") || text.includes("speed up") || text.includes("sube el tempo") || text.includes("subir tempo") || text.includes("sube tempo") || text.includes("aumenta el tempo") || text.includes("aumenta o tempo")) {
-            bpm = Math.min(220, bpm + 12);
-        } else if (text.includes("más lento") || text.includes("mas lento") || text.includes("mais lento") || text.includes("frena") || text.includes("slower") || text.includes("slow down") || text.includes("baja el tempo") || text.includes("bajar tempo") || text.includes("baja tempo") || text.includes("desacelera") || text.includes("diminui o tempo")) {
+        // Relative tempo changes: Check deceleration first to prevent 'desacelera' matching 'acelera'
+        if (text.includes("más lento") || text.includes("mas lento") || text.includes("mais lento") || text.includes("frena") || text.includes("slower") || text.includes("slow down") || text.includes("baja el tempo") || text.includes("bajar tempo") || text.includes("baja tempo") || text.includes("desacelera") || text.includes("diminui o tempo")) {
             bpm = Math.max(60, bpm - 12);
+        } else if (text.includes("más rápido") || text.includes("mas rapido") || text.includes("mais rápido") || text.includes("mais rapido") || text.includes("acelera") || text.includes("faster") || text.includes("speed up") || text.includes("sube el tempo") || text.includes("subir tempo") || text.includes("sube tempo") || text.includes("aumenta el tempo") || text.includes("aumenta o tempo")) {
+            bpm = Math.min(220, bpm + 12);
         } else if (!genreMatched) {
             if (text.includes("fast") || text.includes("rápido") || text.includes("rapido")) {
                 bpm = 132;
